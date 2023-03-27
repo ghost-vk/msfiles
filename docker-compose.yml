@@ -1,0 +1,74 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: msfiles
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+
+  minio:
+    profiles: ["dev"]
+    image: "minio/minio:latest"
+    container_name: msfiles-minio
+    ports:
+      - ${MINIO_PORT}:9000
+      - ${MINIO_CONSOLE_PORT}:9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+  mc:
+    image: minio/mc
+    container_name: msfiles-mc
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+    volumes:
+      - ./docker/minio:/entrypoint
+    entrypoint: >
+      /bin/sh -c "cd /entrypoint && /bin/sh ./minio-client-entrypoint.sh"
+
+  rmq:
+    image: rabbitmq:3.11.8-management-alpine
+    ports:
+      - ${RABBITMQ_PORT}:5672
+      - ${RABBITMQ_UI_PORT}:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - ./docker/rmq/data:/var/lib/rabbitmq
+      - ./docker/rmq/log:/var/log/rabbitmq
+
+  db:
+    container_name: msfiles-db
+    image: postgres:14
+    ports:
+      - ${POSTGRES_PORT}:5432
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - msfiles_db_data:/var/lib/postgresql/data
+
+volumes:
+  minio_data:
+  rmq_data:
+  rmq_log:
+  msfiles_db_data:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${NETWORK_SUBNET}

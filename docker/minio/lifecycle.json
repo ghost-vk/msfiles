@@ -1,0 +1,17 @@
+{
+  "Rules": [
+    {
+      "Expiration": {
+        "Days": 1
+      },
+      "ID": "TemporaryFiles",
+      "Filter": {
+        "Tag": {
+          "Key": "temporary",
+          "Value": "true"
+        }
+      },
+      "Status": "Enabled"
+    }
+  ]
+}
