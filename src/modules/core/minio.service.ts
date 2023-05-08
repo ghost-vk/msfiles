@@ -1,15 +1,11 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import to from 'await-to-js';
 import { imageSize } from 'image-size';
-import { isUndefined } from 'lodash';
+import { flatten, isUndefined, uniq } from 'lodash';
 import { BucketItemStat, Client as MinioClient } from 'minio';
 
+import { PrismaService } from '../../services/prisma.service';
 import { AppConfig } from '../config/types';
 import { ObjectMetadata, PutObjectResult } from './types';
 import { getFileExtension, normalizeFilename, NormalizeFilenameOptions } from './utils';
@@ -19,7 +15,7 @@ export class MinioService {
   private readonly logger = new Logger(MinioService.name);
   public readonly client: MinioClient;
 
-  constructor(private readonly config: ConfigService<AppConfig, true>) {
+  constructor(private readonly config: ConfigService<AppConfig, true>, private readonly prisma: PrismaService) {
     this.client = new MinioClient({
       endPoint: config.get('MINIO_HOST'),
       port: config.get('MINIO_PORT'),
@@ -33,6 +29,14 @@ export class MinioService {
     return this.config.get('MINIO_BUCKET');
   }
 
+  async getObjectUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
+    if (options.bucket === 'public') {
+      return this.config.get('BASE_URL') + '/public/' + objectName;
+    }
+
+    return this.getPresignedDownloadUrl(objectName, options);
+  }
+
   /**
    * Method creates a signed path where you can get the file from the Minio
    * URL expired in 1 hour
@@ -40,10 +44,7 @@ export class MinioService {
    * @param { string } objectName
    * @returns { Promise<string> } Download URL
    */
-  async getPresignedDownloadUrl(
-    objectName: string,
-    options: { bucket?: string } = {},
-  ): Promise<string> {
+  async getPresignedDownloadUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
     const bucket = options.bucket ?? this.bucket;
 
     if (this.config.get('NODE_ENV') === 'development') {
@@ -65,15 +66,10 @@ export class MinioService {
    * @param { string } objectName Filename with extension
    * @returns { Promise<CreateUploadUrlResult> } Upload URL & generated object name
    */
-  async getPresignedUploadUrl(
-    objectName: string,
-    options: { bucket?: string } = {},
-  ): Promise<string> {
+  async getPresignedUploadUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
     const bucket = options.bucket ?? this.bucket;
 
-    const [createUploadUrlError, url] = await to(
-      this.client.presignedPutObject(bucket, objectName, 3600),
-    );
+    const [createUploadUrlError, url] = await to(this.client.presignedPutObject(bucket, objectName, 3600));
 
     if (createUploadUrlError || typeof url !== 'string') {
       this.logger.error(`An error occurred during creation upload URL: ${createUploadUrlError}`);
@@ -89,10 +85,7 @@ export class MinioService {
    *
    * @param objectName
    */
-  async getFileStat(
-    objectName: string,
-    options: { bucket?: string } = {},
-  ): Promise<BucketItemStat> {
+  async getFileStat(objectName: string, options: { bucket?: string } = {}): Promise<BucketItemStat> {
     const bucket = options.bucket ?? this.bucket;
     const [err, data] = await to(this.client.statObject(bucket, objectName));
 
@@ -110,7 +103,15 @@ export class MinioService {
    */
   async deleteObject(objectName: string, options: { bucket?: string } = {}): Promise<boolean> {
     const bucket = options.bucket ?? this.bucket;
-    const [err] = await to(this.client.removeObject(bucket, objectName));
+
+    const relatedTask = await this.prisma.task.findFirst({
+      where: { objectname: objectName },
+      select: { linked_objects: true },
+    });
+
+    const linkedObjects = relatedTask?.linked_objects ? relatedTask.linked_objects.split('::') : [];
+
+    const [err] = await to(this.client.removeObjects(bucket, uniq(linkedObjects.concat(objectName))));
 
     if (err) {
       this.logger.error(`Error occured when delele object: [${objectName}].`, err);
@@ -127,7 +128,18 @@ export class MinioService {
   async deleteObjects(objectNames: string[], options: { bucket?: string } = {}): Promise<boolean> {
     const bucket = options.bucket ?? this.bucket;
 
-    const [err] = await to(this.client.removeObjects(bucket, objectNames));
+    const relatedTasks = await this.prisma.task.findMany({
+      where: { objectname: { in: objectNames } },
+      select: { linked_objects: true },
+    });
+
+    const objectWithLinked = uniq(
+      flatten(relatedTasks.map((rt) => (rt.linked_objects ? rt.linked_objects?.split('::') : []))).concat(
+        ...objectNames,
+      ),
+    );
+
+    const [err] = await to(this.client.removeObjects(bucket, objectWithLinked));
 
     if (err) {
       this.logger.error(`Error occured when delele objects: [${objectNames.join(', ')}]`, err);
@@ -141,7 +153,7 @@ export class MinioService {
   /**
    * Method put file to storage and set temporary tag
    */
-  async putObject(
+  async saveFileToStorage(
     bufferOrFilepath: Buffer | string,
     options: {
       originalname: string;
@@ -169,9 +181,7 @@ export class MinioService {
     const shouldDefineImageSize =
       options.checkImageSize ||
       options.mimetype?.startsWith('image/') ||
-      (['webp', 'jpeg', 'jpg', 'png'].includes(fileExt) &&
-        !filenameOptions.width &&
-        !filenameOptions.height);
+      (['webp', 'jpeg', 'jpg', 'png'].includes(fileExt) && !filenameOptions.width && !filenameOptions.height);
 
     if (shouldDefineImageSize) {
       const dimensionsDefined = !!(options.width && options.height);
@@ -205,17 +215,7 @@ export class MinioService {
       throw new Error(`File [${objectName}] already exist.`);
     }
 
-    let uploadError: null | Error = null;
-
-    if (typeof bufferOrFilepath === 'string') {
-      [uploadError] = await to(
-        this.client.fPutObject(bucket, objectName, bufferOrFilepath, metaData),
-      );
-    } else {
-      [uploadError] = await to(
-        this.client.putObject(bucket, objectName, bufferOrFilepath, undefined, metaData),
-      );
-    }
+    const [uploadError] = await this.putObject(bufferOrFilepath, { bucket, objectName, metaData });
 
     if (uploadError) {
       this.logger.error('Error occured while upload error.', uploadError);
@@ -245,9 +245,7 @@ export class MinioService {
 
   async setTemporaryTag(objectName: string, options: { bucket?: string } = {}): Promise<boolean> {
     const bucket = options.bucket ?? this.bucket;
-    const [error] = await to(
-      this.client.setObjectTagging(bucket, objectName, { temporary: 'true' }),
-    );
+    const [error] = await to(this.client.setObjectTagging(bucket, objectName, { temporary: 'true' }));
 
     if (error) {
       this.logger.error(`Error occured while set temporary tag to object [${objectName}].`, error);
@@ -258,10 +256,7 @@ export class MinioService {
     return true;
   }
 
-  async removeTemporaryTag(
-    objectName: string,
-    options: { bucket?: string } = {},
-  ): Promise<boolean> {
+  async removeTemporaryTag(objectName: string, options: { bucket?: string } = {}): Promise<boolean> {
     const bucket = options.bucket ?? this.bucket;
 
     const [error] = await to(this.client.removeObjectTagging(bucket, objectName));
@@ -273,5 +268,28 @@ export class MinioService {
     }
 
     return true;
+  }
+
+  private async putObject(
+    bufferOrFilepath: string | Buffer,
+    {
+      bucket,
+      objectName,
+      metaData,
+    }: {
+      bucket: string;
+      objectName: string;
+      metaData: ObjectMetadata;
+    },
+  ): Promise<[null | Error]> {
+    let uploadError: null | Error = null;
+
+    if (typeof bufferOrFilepath === 'string') {
+      [uploadError] = await to(this.client.fPutObject(bucket, objectName, bufferOrFilepath, metaData));
+    } else {
+      [uploadError] = await to(this.client.putObject(bucket, objectName, bufferOrFilepath, undefined, metaData));
+    }
+
+    return [uploadError];
   }
 }

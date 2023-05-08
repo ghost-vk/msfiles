@@ -6,6 +6,7 @@ import {
   IsDivisibleBy,
   IsIn,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsPositive,
   IsString,
@@ -13,6 +14,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { flatten } from 'lodash';
 
 import { actions, taskStatus } from '../config/actions';
 import { ImageExtensions, VideoExtensions } from './types';
@@ -150,7 +152,25 @@ export class GetTasksDto {
 
   @IsInt()
   @IsOptional()
-  ids?: number[]
+  ids?: number[];
+}
+
+/**
+ * For internal usage
+ */
+export class GetObjectUrlDto {
+  @IsString()
+  @IsNotEmpty()
+  objectname: string;
+
+  @IsOptional()
+  @IsIn(
+    flatten([
+      process.env.MINIO_BUCKET,
+      process.env.MINIO_ADDITIONAL_BUCKETS ? process.env.MINIO_ADDITIONAL_BUCKETS.split(',') : [],
+    ]),
+  )
+  bucket?: string;
 }
 
 export class GetMyTasksDto {

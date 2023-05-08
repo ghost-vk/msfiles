@@ -43,7 +43,7 @@ export const loadConfig = (): AppConfig => ({
   POSTGRES_PORT: +(process.env.POSTGRES_PORT as string),
   POSTGRES_HOST: process.env.POSTGRES_HOST as string,
   POSTGRES_USER: process.env.POSTGRES_USER as string,
-  POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD as string, 
+  POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD as string,
   POSTGRES_DB: process.env.POSTGRES_DB as string,
   DATABASE_URL: process.env.DATABASE_URL as string,
 });
@@ -65,6 +65,7 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
     .valid('fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent')
     .optional()
     .label('PINO_LOGGER_LEVEL'),
+  PRISMA_LOGGER_LEVELS: Joi.string().optional().label('PRISMA_LOGGER_LEVELS'),
   MINIO_HOST: Joi.string().required().label('MINIO_HOST'),
   MINIO_PORT: Joi.number().integer().positive().required().label('MINIO_PORT'),
   MINIO_USE_SSL: Joi.string()
@@ -76,7 +77,6 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
   MINIO_BUCKET: Joi.string().required().label('MINIO_BUCKET'),
   MINIO_ADDITIONAL_BUCKETS: Joi.string().optional().label('MINIO_ADDITIONAL_BUCKETS'),
   DATABASE_URL: Joi.string().required().label('DATABASE_URL'),
-  PRISMA_LOGGER_LEVELS: Joi.string().optional().label('PRISMA_LOGGER_LEVELS'),
   JWT_SECRET: Joi.string().required().label('JWT_SECRET'),
   RABBITMQ_USER: Joi.string().required().label('RABBITMQ_USER'),
   RABBITMQ_PASSWORD: Joi.string().required().label('RABBITMQ_PASSWORD'),

@@ -101,32 +101,21 @@ export type PutObjectResult = {
   bucket: string;
 };
 
-export type FileType = 'file' | 'image' | 'video';
+export type FileType = 'mainFile' | 'thumbnail' | 'altVideo' | 'preview';
 
-export type MessageUploadBasePayload = {
+export type MessageUploadPayload = {
   action: typeof actions[keyof typeof actions];
   objectname: string;
+  originalname: string;
   size: number;
   type: FileType;
-  metadata?: Record<string, string>;
+  metadata?: Record<string, unknown>;
+  height?: number;
+  width?: number;
   bucket: string;
   task_id: number;
   created_at: Date;
   actor: string | number;
-};
-
-export type MessageUploadFilePayload = MessageUploadBasePayload;
-
-export type MessageUploadImagePayload = MessageUploadBasePayload & {
-  thumbnails?: Array<Record<string, string>>;
-  linkedObjects?: string[];
-};
-
-export type MessageUploadVideoPayload = MessageUploadBasePayload & {
-  thumbnails?: Array<Record<string, string>>;
-  previews?: string[];
-  linkedObjects?: string[];
-  altResolutionObjects?: Array<Record<string, string>>;
 };
 
 export type MessageAsyncUploadError = {
@@ -144,4 +133,14 @@ export type ObjectMetadata = {
   width?: number;
 };
 
+export type TaskCompletedPayload = {
+  task_id: number;
+}
+
+export type ProcessImageOptions = {
+  quality?: number;
+  width?: number;
+  height?: number;
+  fit?: 'contain' | 'cover' | 'fill' | 'inside' | 'outside';
+};
 

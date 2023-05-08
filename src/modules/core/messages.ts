@@ -9,4 +9,5 @@ export const sentMessages = {
   uploadedImage: 'uploaded_image',
   uploadedVideo: 'uploaded_video',
   uploadError: 'upload_error',
+  taskCompleted: 'task_completed',
 } as const;

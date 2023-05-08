@@ -1,11 +1,11 @@
 export const actions = {
-  uploadImage: 'upload_image',
-  uploadVideo: 'upload_video',
-  uploadFile: 'upload_file',
+  uploadImage: 'uploadImage',
+  uploadVideo: 'uploadVideo',
+  uploadFile: 'uploadFile',
 } as const;
 
 export const taskStatus = {
   done: 'done',
-  inProgress: 'in_progress',
+  inProgress: 'inProgress',
   error: 'error',
 } as const;

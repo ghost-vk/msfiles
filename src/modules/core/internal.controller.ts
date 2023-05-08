@@ -1,11 +1,11 @@
 import {
   BadRequestException,
-  Body,
   CACHE_MANAGER,
   Controller,
+  Get,
   Inject,
   Logger,
-  Post,
+  Query,
   UseFilters,
   ValidationPipe,
 } from '@nestjs/common';
@@ -19,7 +19,7 @@ import { nanoid } from 'nanoid';
 
 import { PrismaService } from '../../services/prisma.service';
 import { AppConfig } from '../config/types';
-import { GetTasksDto } from './core.dto';
+import { GetObjectUrlDto, GetTasksDto } from './core.dto';
 import { receivedMessages } from './messages';
 import { MinioService } from './minio.service';
 import { RpcValidationFilter } from './rpc-validation.filter';
@@ -49,7 +49,7 @@ export class InternalController {
   ): Promise<{ url: string }> {
     try {
       this.logger.log(
-        `Action: ${receivedMessages.createUploadUrl}. Payload: ${JSON.stringify(payload, null, 2)}`,
+        `Action: ${receivedMessages.createUploadUrl}. Payload: ${JSON.stringify(payload, null, 2)}.`,
       );
 
       const data: CreateUploadUrlCacheData = {
@@ -164,14 +164,14 @@ export class InternalController {
     }
   }
 
-  @Post('tasks')
+  @Get('tasks')
   @ApiExcludeEndpoint()
-  getTasks(@Body() args: GetTasksDto): Promise<Task[]> {
+  getTasks(@Query() args: GetTasksDto): Promise<Task[]> {
     try {
       return this.prisma.task.findMany({
         where: {
           action: { in: args.actions },
-          actor: { in: args.actors?.map(a => String(a)) },
+          actor: { in: args.actors?.map((a) => String(a)) },
           originalname: { in: args.originalnames },
           status: { in: args.statuses },
           id: { in: args.ids },
@@ -185,5 +185,21 @@ export class InternalController {
 
       throw new BadRequestException('Check your input.');
     }
+  }
+
+  @Get('object_url')
+  @ApiExcludeEndpoint()
+  async getObjectUrl(@Query() args: GetObjectUrlDto): Promise<{ url: string }> {
+    this.logger.log(
+      `Internal object URL request for [${args.objectname}]. Arguments: ${JSON.stringify(
+        args,
+        null,
+        2,
+      )}.`,
+    );
+
+    const url = await this.minioService.getObjectUrl(args.objectname, { bucket: args.bucket });
+
+    return { url };
   }
 }

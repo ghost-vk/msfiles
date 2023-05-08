@@ -48,8 +48,9 @@ import { imageConversion$, videoConversion$ } from './observable';
 import {
   CreateUploadUrlCacheData,
   MessageAsyncUploadError,
-  MessageUploadFilePayload,
+  MessageUploadPayload,
   PutObjectResult,
+  TaskCompletedPayload,
 } from './types';
 import { UploadObjectDataPipe } from './upload-object.pipe';
 import { getFileExtension } from './utils';
@@ -78,10 +79,7 @@ export class ExternalController {
 
   @Get('mytasks')
   @UseInterceptors(ClassSerializerInterceptor)
-  async getMyTasks(
-    @CurrentUser() currentUser: UserAuthPayload,
-    @Query() args: GetMyTasksDto,
-  ): Promise<Task[]> {
+  async getMyTasks(@CurrentUser() currentUser: UserAuthPayload, @Query() args: GetMyTasksDto): Promise<Task[]> {
     try {
       const tasks = await this.prisma.task.findMany({
         where: {
@@ -95,10 +93,7 @@ export class ExternalController {
 
       return tasks.map((t) => new Task(t));
     } catch (err) {
-      this.logger.error(
-        `Get my task error: ${err.message}. Parameters: ${JSON.stringify(args, null, 2)}.`,
-        err?.stack,
-      );
+      this.logger.error(`Get my task error: ${err.message}. Parameters: ${JSON.stringify(args, null, 2)}.`, err?.stack);
 
       throw new InternalServerErrorException('Get task error.');
     }
@@ -139,7 +134,7 @@ export class ExternalController {
     });
 
     try {
-      const object = await this.minioService.putObject(file.buffer, {
+      const object = await this.minioService.saveFileToStorage(file.buffer, {
         originalname: file.originalname,
         actor: user.user_id,
         temporary: true,
@@ -153,60 +148,44 @@ export class ExternalController {
         data: { status: taskStatus.done, objectname: object.objectname },
       });
 
-      const msgPayload: MessageUploadFilePayload = {
-        action: 'upload_file',
+      this.queueClient.emit<unknown, MessageUploadPayload>(sentMessages.uploadedFile, {
+        action: 'uploadFile',
         actor: user.user_id,
         objectname: object.objectname,
+        originalname: file.originalname,
         size: object.size,
-        type: 'file',
+        type: 'mainFile',
         metadata: object.metadata,
         bucket: object.bucket,
         task_id: task.id,
         created_at: task.created_at,
-      };
+      });
 
-      this.queueClient.emit<unknown, MessageUploadFilePayload>(
-        sentMessages.uploadedFile,
-        msgPayload,
-      );
+      this.queueClient.emit<unknown, TaskCompletedPayload>(sentMessages.taskCompleted, { task_id: task.id });
 
-      this.logger.log(
-        `Sent message to queue [${sentMessages.uploadedFile}]. Payload: ${JSON.stringify(
-          msgPayload,
-          null,
-          2,
-        )}.`,
-      );
+      this.logger.log(`Sent message to queue [${sentMessages.uploadedFile}].`);
 
-      this.logger.log(
-        `Successfully upload files: ${uploadedObjects.map((o) => o.objectname).join(', ')}.`,
-      );
+      this.logger.log(`Successfully upload files: ${uploadedObjects.map((o) => o.objectname).join(', ')}.`);
 
       return new Task(task);
     } catch (e) {
       const objectnames = uploadedObjects.map((o) => o.objectname);
 
-      this.logger.error(
-        `An error occured when upload files [${JSON.stringify(objectnames.join(', '))}].`,
-        e,
-      );
+      this.logger.error(`An error occured when upload files [${JSON.stringify(objectnames.join(', '))}].`, e);
       const [err] = await to(this.minioService.deleteObjects(objectnames));
 
       if (err) {
-        this.logger.warn(
-          `🟡 Delete uploaded objects error for [${JSON.stringify(objectnames.join(', '))}].`,
-          err,
-        );
+        this.logger.warn(`🟡 Delete uploaded objects error for [${JSON.stringify(objectnames.join(', '))}].`, err);
       }
       await to(
         this.filesService.setErrorStatusToActiveTasks({
           user_id: user.user_id,
-          action: 'upload_file',
+          action: 'uploadFile',
         }),
       );
 
       const msgPayload: MessageAsyncUploadError = {
-        action: 'upload_file',
+        action: 'uploadFile',
         actor: user.user_id,
         task_id: task.id,
         created_at: task.created_at,
@@ -266,7 +245,7 @@ export class ExternalController {
 
         tasks.push(new Task(task));
 
-        const object = await this.minioService.putObject(f.buffer, {
+        const object = await this.minioService.saveFileToStorage(f.buffer, {
           originalname: f.originalname,
           actor: user.user_id,
           temporary: true,
@@ -280,51 +259,36 @@ export class ExternalController {
           data: { status: taskStatus.done, objectname: object.objectname },
         });
 
-        const msgPayload: MessageUploadFilePayload = {
-          action: 'upload_file',
+        this.queueClient.emit<unknown, MessageUploadPayload>(sentMessages.uploadedFile, {
+          action: 'uploadFile',
           actor: user.user_id,
           objectname: object.objectname,
+          originalname: f.originalname,
           size: object.size,
-          type: 'file',
+          type: 'mainFile',
           metadata: object.metadata,
           bucket: object.bucket,
           task_id: task.id,
           created_at: task.created_at,
-        };
+        });
 
-        this.queueClient.emit<unknown, MessageUploadFilePayload>(
-          sentMessages.uploadedFile,
-          msgPayload,
-        );
-
-        this.logger.log(
-          `Sent message to queue [${sentMessages.uploadedFile}]. Payload: ${JSON.stringify(
-            msgPayload,
-            null,
-            2,
-          )}.`,
-        );
+        this.logger.log(`Sent message to queue [${sentMessages.uploadedFile}].`);
       }
 
-      this.logger.log(
-        `Successfully upload files: ${uploadedObjects.map((o) => o.objectname).join(', ')}.`,
-      );
+      this.logger.log(`Successfully upload files: ${uploadedObjects.map((o) => o.objectname).join(', ')}.`);
 
       return tasks;
     } catch (e) {
       const objectnames = uploadedObjects.map((o) => o.objectname);
 
-      this.logger.error(
-        `An error occured when upload files [${JSON.stringify(objectnames.join(', '))}].`,
-        e,
-      );
+      this.logger.error(`An error occured when upload files [${JSON.stringify(objectnames.join(', '))}].`, e);
 
       await to(this.filesService.setErrorStatusToActiveTasks({ user_id: user.user_id }));
 
       const currentTask = tasks.slice(-1)[0];
 
       const msgPayload: MessageAsyncUploadError = {
-        action: 'upload_file',
+        action: 'uploadFile',
         actor: user.user_id,
         task_id: currentTask.id,
         created_at: currentTask.created_at,
@@ -332,7 +296,7 @@ export class ExternalController {
         metadata: {
           processed_files: tasks.length - 1,
           total_files: files.length,
-        }
+        },
       };
 
       this.queueClient.emit<unknown, MessageAsyncUploadError>(sentMessages.uploadError, msgPayload);
@@ -394,9 +358,7 @@ export class ExternalController {
 
       await writeFile(join(dir, inputFileName), file.buffer);
 
-      this.logger.log(
-        `Successfully put file [${file.originalname}] to temporary directory for conversion.`,
-      );
+      this.logger.log(`Successfully put file [${file.originalname}] to temporary directory for conversion.`);
 
       imageConversion$.next({
         ext: options.ext ?? 'webp',
@@ -450,9 +412,7 @@ export class ExternalController {
       throw new BadRequestException('Required video file to upload.');
     }
 
-    this.logger.debug(
-      `Start upload video [${file.originalname}]. Options: ${JSON.stringify(options, null, 2)}.`,
-    );
+    this.logger.debug(`Start upload video [${file.originalname}]. Options: ${JSON.stringify(options, null, 2)}.`);
 
     const taskRecord = await this.prisma.task.create({
       data: {
@@ -472,9 +432,7 @@ export class ExternalController {
 
       await writeFile(join(dir, inputFileName), file.buffer);
 
-      this.logger.log(
-        `Successfully put file [${file.originalname}] to temporary directory for conversion.`,
-      );
+      this.logger.log(`Successfully put file [${file.originalname}] to temporary directory for conversion.`);
 
       videoConversion$.next({
         ext: options.ext ?? 'mp4',
