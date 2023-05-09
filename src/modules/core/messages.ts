@@ -5,9 +5,9 @@ export const receivedMessages = {
 } as const;
 
 export const sentMessages = {
-  uploadedFile: 'uploaded_file',
-  uploadedImage: 'uploaded_image',
-  uploadedVideo: 'uploaded_video',
-  uploadError: 'upload_error',
-  taskCompleted: 'task_completed',
+  uploadedFile: 'msfiles.uploaded_file',
+  uploadedImage: 'msfiles.uploaded_image',
+  uploadedVideo: 'msfiles.uploaded_video',
+  uploadError: 'msfiles.upload_error',
+  taskCompleted: 'msfiles.task_completed',
 } as const;

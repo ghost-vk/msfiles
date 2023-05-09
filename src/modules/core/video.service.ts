@@ -93,6 +93,7 @@ export class VideoService {
           originalname: input.originalname,
           task_id: task.id,
           type: 'mainFile',
+          uid: input.uid,
           ...originalVideoDimensions,
         });
 
@@ -130,6 +131,7 @@ export class VideoService {
                   originalname: input.originalname,
                   task_id: task.id,
                   type: 'altVideo',
+                  uid: input.uid,
                   ...videoDimension,
                 });
               } else {
@@ -148,6 +150,7 @@ export class VideoService {
                   originalname: input.originalname,
                   task_id: task.id,
                   type: 'mainFile',
+                  uid: input.uid,
                   ...videoDimension,
                 });
               }
@@ -184,6 +187,7 @@ export class VideoService {
                   originalname: input.originalname,
                   task_id: task.id,
                   type: 'altVideo',
+                  uid: input.uid,
                   ...videoDimension,
                 });
               } else {
@@ -202,6 +206,7 @@ export class VideoService {
                   originalname: input.originalname,
                   task_id: task.id,
                   type: 'mainFile',
+                  uid: input.uid,
                   ...videoDimension,
                 });
               }
@@ -258,6 +263,7 @@ export class VideoService {
                     originalname: input.originalname,
                     task_id: task.id,
                     type: 'altVideo',
+                    uid: input.uid,
                     ...videoDimension,
                   });
                 } else if (filename.endsWith('m3u8') && mainFile) {
@@ -276,6 +282,7 @@ export class VideoService {
                     originalname: input.originalname,
                     task_id: task.id,
                     type: 'mainFile',
+                    uid: input.uid,
                     ...videoDimension,
                   });
                 }
@@ -318,6 +325,7 @@ export class VideoService {
         created_at: task.created_at,
         task_id: task.id,
         type: 'preview',
+        uid: input.uid,
         ...sortedSizes[highestQualityObjectIndex],
       });
 
@@ -351,6 +359,7 @@ export class VideoService {
         created_at: task.created_at,
         task_id: task.id,
         type: 'thumbnail',
+        uid: input.uid,
         ...sortedSizes[highestQualityObjectIndex],
       });
 
@@ -364,7 +373,10 @@ export class VideoService {
         },
       });
 
-      this.queueClient.emit<unknown, TaskCompletedPayload>(sentMessages.taskCompleted, { task_id: task.id });
+      this.queueClient.emit<unknown, TaskCompletedPayload>(sentMessages.taskCompleted, {
+        task_id: task.id,
+        uid: input.uid,
+      });
 
       this.logger.debug(`Sent message to queue [${sentMessages.taskCompleted}].`);
     } catch (error) {
@@ -395,6 +407,7 @@ export class VideoService {
         task_id: input.task_id,
         created_at: task.created_at,
         message: task.error_message ? task.error_message : undefined,
+        uid: input.uid,
       };
 
       this.queueClient.emit<unknown, MessageAsyncUploadError>(sentMessages.uploadError, msgPayload);

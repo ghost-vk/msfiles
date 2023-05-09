@@ -1,6 +1,7 @@
 -- CreateTable
 CREATE TABLE "task" (
-    "id" SERIAL NOT NULL,
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "uid" TEXT NOT NULL,
     "actor" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "action" TEXT NOT NULL,
@@ -10,8 +11,6 @@ CREATE TABLE "task" (
     "bucket" TEXT NOT NULL,
     "parameters" TEXT,
     "error_message" TEXT,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "task_pkey" PRIMARY KEY ("id")
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" DATETIME NOT NULL
 );

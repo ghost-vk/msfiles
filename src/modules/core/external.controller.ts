@@ -115,7 +115,7 @@ export class ExternalController {
     @CurrentUser() user?: UserAuthPayload,
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task> {
-    if (!user) throw new ForbiddenException();
+    if (!user || !uploadConfig) throw new ForbiddenException();
 
     if (!file) {
       throw new BadRequestException('File required to upload.');
@@ -130,6 +130,7 @@ export class ExternalController {
         originalname: file.originalname,
         status: taskStatus.inProgress,
         bucket: uploadConfig?.bucket ?? this.minioService.bucket,
+        uid: uploadConfig.uid,
       },
     });
 
@@ -159,11 +160,17 @@ export class ExternalController {
         bucket: object.bucket,
         task_id: task.id,
         created_at: task.created_at,
+        uid: uploadConfig.uid,
       });
 
-      this.queueClient.emit<unknown, TaskCompletedPayload>(sentMessages.taskCompleted, { task_id: task.id });
-
       this.logger.log(`Sent message to queue [${sentMessages.uploadedFile}].`);
+
+      this.queueClient.emit<unknown, TaskCompletedPayload>(sentMessages.taskCompleted, {
+        task_id: task.id,
+        uid: uploadConfig.uid,
+      });
+
+      this.logger.log(`Sent message to queue [${sentMessages.taskCompleted}].`);
 
       this.logger.log(`Successfully upload files: ${uploadedObjects.map((o) => o.objectname).join(', ')}.`);
 
@@ -190,6 +197,7 @@ export class ExternalController {
         task_id: task.id,
         created_at: task.created_at,
         message: err?.message ? err.message : undefined,
+        uid: uploadConfig.uid,
       };
 
       this.queueClient.emit<unknown, MessageAsyncUploadError>(sentMessages.uploadError, msgPayload);
@@ -218,7 +226,7 @@ export class ExternalController {
     @CurrentUser() user?: UserAuthPayload,
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task[]> {
-    if (!user) throw new ForbiddenException();
+    if (!user || !uploadConfig) throw new ForbiddenException();
 
     if (!files) {
       throw new BadRequestException('Files required to upload.');
@@ -240,6 +248,7 @@ export class ExternalController {
             originalname: f.originalname,
             status: taskStatus.inProgress,
             bucket: uploadConfig?.bucket ?? this.minioService.bucket,
+            uid: uploadConfig.uid,
           },
         });
 
@@ -270,6 +279,7 @@ export class ExternalController {
           bucket: object.bucket,
           task_id: task.id,
           created_at: task.created_at,
+          uid: uploadConfig.uid,
         });
 
         this.logger.log(`Sent message to queue [${sentMessages.uploadedFile}].`);
@@ -297,6 +307,7 @@ export class ExternalController {
           processed_files: tasks.length - 1,
           total_files: files.length,
         },
+        uid: uploadConfig.uid,
       };
 
       this.queueClient.emit<unknown, MessageAsyncUploadError>(sentMessages.uploadError, msgPayload);
@@ -322,7 +333,7 @@ export class ExternalController {
     @Query() options: UploadImageOptionsDto = {},
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task> {
-    if (!user) throw new ForbiddenException();
+    if (!user || !uploadConfig) throw new ForbiddenException();
 
     if (!file) {
       throw new BadRequestException('File required to upload');
@@ -348,6 +359,7 @@ export class ExternalController {
         status: taskStatus.inProgress,
         parameters: JSON.stringify(options),
         bucket: uploadConfig?.bucket ?? this.minioService.bucket,
+        uid: uploadConfig.uid,
       },
     });
 
@@ -371,6 +383,7 @@ export class ExternalController {
         height: options.h,
         actor: user.user_id,
         bucket: uploadConfig?.bucket,
+        uid: uploadConfig.uid,
       });
 
       return new Task(taskRecord);
@@ -406,7 +419,7 @@ export class ExternalController {
     @Query() options: UploadVideoOptionsDto = {},
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task> {
-    if (!user) throw new ForbiddenException();
+    if (!user || !uploadConfig) throw new ForbiddenException();
 
     if (!file || !file.mimetype.startsWith('video/')) {
       throw new BadRequestException('Required video file to upload.');
@@ -422,6 +435,7 @@ export class ExternalController {
         status: taskStatus.inProgress,
         parameters: JSON.stringify(options),
         bucket: uploadConfig?.bucket ?? this.minioService.bucket,
+        uid: uploadConfig.uid,
       },
     });
 
@@ -444,6 +458,7 @@ export class ExternalController {
         task_id: taskRecord.id,
         actor: user.user_id,
         bucket: uploadConfig?.bucket,
+        uid: uploadConfig.uid,
       });
 
       return new Task(taskRecord);

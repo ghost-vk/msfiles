@@ -48,13 +48,12 @@ export class InternalController {
     @Payload(new ValidationPipe({ transform: true })) payload: CreateUploadUrlPayload,
   ): Promise<{ url: string }> {
     try {
-      this.logger.log(
-        `Action: ${receivedMessages.createUploadUrl}. Payload: ${JSON.stringify(payload, null, 2)}.`,
-      );
+      this.logger.log(`Action: ${receivedMessages.createUploadUrl}. Payload: ${JSON.stringify(payload, null, 2)}.`);
 
       const data: CreateUploadUrlCacheData = {
         user_id: payload.user_id,
         action: payload.action,
+        uid: payload.uid,
       };
 
       if (payload.bucket) data.bucket = payload.bucket;
@@ -65,15 +64,15 @@ export class InternalController {
       let route: string;
 
       switch (payload.action) {
-        case 'upload_file': {
-          route = 'files';
+        case 'uploadFile': {
+          route = 'file';
           break;
         }
-        case 'upload_image': {
+        case 'uploadImage': {
           route = 'image';
           break;
         }
-        case 'upload_video': {
+        case 'uploadVideo': {
           route = 'video';
           break;
         }
@@ -98,9 +97,7 @@ export class InternalController {
     @Payload(new ValidationPipe({ transform: true })) payload: DeleteObjectsPayload,
   ): Promise<{ status: string }> {
     try {
-      this.logger.log(
-        `Action: ${receivedMessages.deleteObjects}. Payload: ${JSON.stringify(payload, null, 2)}`,
-      );
+      this.logger.log(`Action: ${receivedMessages.deleteObjects}. Payload: ${JSON.stringify(payload, null, 2)}`);
 
       await this.minioService.deleteObjects(payload.objects);
 
@@ -121,13 +118,7 @@ export class InternalController {
     const processedObjects: string[] = [];
 
     try {
-      this.logger.log(
-        `Action: ${receivedMessages.removeTemproraryTag}. Payload: ${JSON.stringify(
-          payload,
-          null,
-          2,
-        )}`,
-      );
+      this.logger.log(`Action: ${receivedMessages.removeTemproraryTag}. Payload: ${JSON.stringify(payload, null, 2)}`);
 
       for (const object of payload.objects) {
         const isRemoved = await this.minioService.removeTemporaryTag(object);
@@ -141,20 +132,13 @@ export class InternalController {
 
       return { status: 'ok' };
     } catch (err) {
-      this.logger.error(
-        `Remove temprorary tag for objects [${payload.objects.join(', ')}] error.`,
-        err,
-      );
+      this.logger.error(`Remove temprorary tag for objects [${payload.objects.join(', ')}] error.`, err);
 
       if (processedObjects.length) {
-        const [err] = await to(
-          Promise.all(processedObjects.map((o) => this.minioService.setTemporaryTag(o))),
-        );
+        const [err] = await to(Promise.all(processedObjects.map((o) => this.minioService.setTemporaryTag(o))));
 
         if (err) {
-          this.logger.error(
-            `🔴 Error when restore temporary tag to objects: [${processedObjects.join(', ')}]`,
-          );
+          this.logger.error(`🔴 Error when restore temporary tag to objects: [${processedObjects.join(', ')}]`);
         }
 
         this.logger.log('Processed objects successfully restored.');
@@ -178,10 +162,7 @@ export class InternalController {
         },
       });
     } catch (err) {
-      this.logger.error(
-        `Get task error: ${err.message}. Parameters: ${JSON.stringify(args, null, 2)}.`,
-        err?.stack,
-      );
+      this.logger.error(`Get task error: ${err.message}. Parameters: ${JSON.stringify(args, null, 2)}.`, err?.stack);
 
       throw new BadRequestException('Check your input.');
     }
@@ -191,11 +172,7 @@ export class InternalController {
   @ApiExcludeEndpoint()
   async getObjectUrl(@Query() args: GetObjectUrlDto): Promise<{ url: string }> {
     this.logger.log(
-      `Internal object URL request for [${args.objectname}]. Arguments: ${JSON.stringify(
-        args,
-        null,
-        2,
-      )}.`,
+      `Internal object URL request for [${args.objectname}]. Arguments: ${JSON.stringify(args, null, 2)}.`,
     );
 
     const url = await this.minioService.getObjectUrl(args.objectname, { bucket: args.bucket });

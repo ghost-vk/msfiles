@@ -104,6 +104,9 @@ export class ImageService {
         created_at: task.created_at,
         actor: input.actor,
         metadata: object.metadata,
+        uid: input.uid,
+        height: input.height,
+        width: input.width,
       });
 
       uploadedObjects.push(object.objectname);
@@ -140,9 +143,13 @@ export class ImageService {
         created_at: task.created_at,
         actor: input.actor,
         metadata: object.metadata,
+        uid: input.uid,
       });
 
-      this.queueClient.emit<unknown, TaskCompletedPayload>(sentMessages.taskCompleted, { task_id: input.task_id });
+      this.queueClient.emit<unknown, TaskCompletedPayload>(sentMessages.taskCompleted, {
+        task_id: input.task_id,
+        uid: input.uid,
+      });
     } catch (e) {
       this.logger.error('Handle temporary image file error.', e);
 
@@ -163,6 +170,7 @@ export class ImageService {
         task_id: task.id,
         created_at: task.created_at,
         message: task.error_message ? task.error_message : undefined,
+        uid: input.uid,
       };
 
       this.queueClient.emit<unknown, MessageAsyncUploadError>(sentMessages.uploadError, msgPayload);

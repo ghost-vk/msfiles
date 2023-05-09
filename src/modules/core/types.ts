@@ -1,13 +1,5 @@
 import { Transform } from 'class-transformer';
-import {
-  ArrayMinSize,
-  IsArray,
-  IsIn,
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 import { actions } from '../config/actions';
 import { splitByComma } from '../config/utils';
@@ -41,6 +33,7 @@ export type VideoConversionPayload = {
   sizes?: VideoSize[];
   actor: number | string;
   bucket?: string;
+  uid: string;
 };
 
 export type ImageConversionPayload = {
@@ -52,6 +45,7 @@ export type ImageConversionPayload = {
   quality?: number;
   actor: number | string;
   bucket?: string;
+  uid: string;
 } & Partial<ImageSize>;
 
 export class CreateUploadUrlPayload {
@@ -65,17 +59,23 @@ export class CreateUploadUrlPayload {
   user_id: number;
 
   @IsIn(
-    process.env.MINIO_ADDITIONAL_BUCKETS ? splitByComma(process.env.MINIO_ADDITIONAL_BUCKETS) : [],
+    (process.env.MINIO_ADDITIONAL_BUCKETS ? splitByComma(process.env.MINIO_ADDITIONAL_BUCKETS) : []).concat(
+      process.env.MINIO_BUCKET as string,
+    ),
   )
   @IsOptional()
   bucket?: string;
+
+  @IsUUID()
+  uid: string;
 }
 
 export type CreateUploadUrlCacheData = {
-  action: typeof actions[keyof typeof actions];
+  action: (typeof actions)[keyof typeof actions];
   user_id: string | number;
   bucket?: string;
   used?: boolean;
+  uid: string;
 };
 
 export class DeleteObjectsPayload {
@@ -104,7 +104,7 @@ export type PutObjectResult = {
 export type FileType = 'mainFile' | 'thumbnail' | 'altVideo' | 'preview';
 
 export type MessageUploadPayload = {
-  action: typeof actions[keyof typeof actions];
+  action: (typeof actions)[keyof typeof actions];
   objectname: string;
   originalname: string;
   size: number;
@@ -114,18 +114,20 @@ export type MessageUploadPayload = {
   width?: number;
   bucket: string;
   task_id: number;
+  uid: string;
   created_at: Date;
   actor: string | number;
 };
 
 export type MessageAsyncUploadError = {
   task_id: number;
-  action: typeof actions[keyof typeof actions];
+  action: (typeof actions)[keyof typeof actions];
   created_at: Date;
   actor: string | number;
   message?: string;
   metadata?: Record<string, unknown>;
-}
+  uid: string;
+};
 
 export type ObjectMetadata = {
   actor?: number | string;
@@ -135,7 +137,8 @@ export type ObjectMetadata = {
 
 export type TaskCompletedPayload = {
   task_id: number;
-}
+  uid: string;
+};
 
 export type ProcessImageOptions = {
   quality?: number;
@@ -143,4 +146,3 @@ export type ProcessImageOptions = {
   height?: number;
   fit?: 'contain' | 'cover' | 'fill' | 'inside' | 'outside';
 };
-
