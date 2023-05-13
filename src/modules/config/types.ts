@@ -22,14 +22,10 @@ export interface AppConfig {
   RABBITMQ_USER: string;
   RABBITMQ_PASSWORD: string;
   RABBITMQ_HOST: string;
-  RABBITMQ_QUEUE_NAME: string;
+  RABBITMQ_QUEUE_MSFILES: string;
+  RABBITMQ_QUEUE_CORE: string;
   RABBITMQ_PORT: number;
   IS_SWAGGER_ENABLED_BOOL: boolean;
-  POSTGRES_PORT: number;
-  POSTGRES_USER: string;
-  POSTGRES_PASSWORD: string;
-  POSTGRES_DB: string;
-  POSTGRES_HOST: string;
   DATABASE_URL: string;
 }
 
@@ -55,13 +51,9 @@ export interface EnvVariables {
   RABBITMQ_USER: string;
   RABBITMQ_PASSWORD: string;
   RABBITMQ_HOST: string;
-  RABBITMQ_QUEUE_NAME: string;
+  RABBITMQ_QUEUE_MSFILES: string;
+  RABBITMQ_QUEUE_CORE: string;
   RABBITMQ_PORT: number;
   IS_SWAGGER_ENABLED: EnvBoolean;
-  POSTGRES_PORT: number;
-  POSTGRES_USER: string;
-  POSTGRES_PASSWORD: string;
-  POSTGRES_DB: string;
-  POSTGRES_HOST: string;
   DATABASE_URL: string;
 }

@@ -18,7 +18,7 @@ import { AppConfig } from './modules/config/types';
     password: config.get('RABBITMQ_PASSWORD'),
     host: config.get('RABBITMQ_HOST'),
     port: config.get('RABBITMQ_PORT'),
-    queue: config.get('RABBITMQ_QUEUE_NAME'),
+    queue: config.get('RABBITMQ_QUEUE_MSFILES'),
   };
 
   const ms = app.connectMicroservice<RmqOptions>({

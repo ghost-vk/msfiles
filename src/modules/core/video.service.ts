@@ -9,7 +9,7 @@ import { join } from 'path';
 
 import { PrismaService } from '../../services/prisma.service';
 import { actions, taskStatus } from '../config/actions';
-import { FILES_DELIMETER, MS_CLIENT } from '../config/constants';
+import { FILES_DELIMETER, MS_CORE_CLIENT } from '../config/constants';
 import { FFmpegService } from './ffmpeg.service';
 import { FFprobeService } from './ffprobe.service';
 import { ImageService } from './image.service';
@@ -33,7 +33,7 @@ export class VideoService {
     private readonly ffmpegService: FFmpegService,
     private readonly prisma: PrismaService,
     private readonly minioService: MinioService,
-    @Inject(MS_CLIENT) private readonly queueClient: ClientProxy,
+    @Inject(MS_CORE_CLIENT) private readonly queueClient: ClientProxy,
     private readonly imageService: ImageService,
   ) {}
 

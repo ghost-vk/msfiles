@@ -38,13 +38,9 @@ export const loadConfig = (): AppConfig => ({
   RABBITMQ_PASSWORD: process.env.RABBITMQ_PASSWORD as string,
   RABBITMQ_HOST: process.env.RABBITMQ_HOST as string,
   RABBITMQ_PORT: +(process.env.RABBITMQ_PORT as string),
-  RABBITMQ_QUEUE_NAME: process.env.RABBITMQ_QUEUE_NAME as string,
+  RABBITMQ_QUEUE_MSFILES: process.env.RABBITMQ_QUEUE_MSFILES as string,
+  RABBITMQ_QUEUE_CORE: process.env.RABBITMQ_QUEUE_CORE as string,
   IS_SWAGGER_ENABLED_BOOL: convertEnvToBoolean(process.env.IS_SWAGGER_ENABLED),
-  POSTGRES_PORT: +(process.env.POSTGRES_PORT as string),
-  POSTGRES_HOST: process.env.POSTGRES_HOST as string,
-  POSTGRES_USER: process.env.POSTGRES_USER as string,
-  POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD as string,
-  POSTGRES_DB: process.env.POSTGRES_DB as string,
   DATABASE_URL: process.env.DATABASE_URL as string,
 });
 
@@ -82,14 +78,10 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
   RABBITMQ_PASSWORD: Joi.string().required().label('RABBITMQ_PASSWORD'),
   RABBITMQ_HOST: Joi.string().required().label('RABBITMQ_HOST'),
   RABBITMQ_PORT: Joi.number().required().label('RABBITMQ_PORT'),
-  RABBITMQ_QUEUE_NAME: Joi.string().required().label('RABBITMQ_QUEUE_NAME'),
+  RABBITMQ_QUEUE_MSFILES: Joi.string().required().label('RABBITMQ_QUEUE_MSFILES'),
+  RABBITMQ_QUEUE_CORE: Joi.string().required().label('RABBITMQ_QUEUE_CORE'),
   IS_SWAGGER_ENABLED: Joi.string()
     .required()
     .valid(...availableEnvBoolean)
     .label('IS_SWAGGER_ENABLED'),
-  POSTGRES_PORT: Joi.number().integer().positive().required().label('POSTGRES_PORT'),
-  POSTGRES_USER: Joi.string().required().label('POSTGRES_USER'),
-  POSTGRES_PASSWORD: Joi.string().required().label('POSTGRES_PASSWORD'),
-  POSTGRES_DB: Joi.string().required().label('POSTGRES_DB'),
-  POSTGRES_HOST: Joi.string().required().label('POSTGRES_HOST'),
 });

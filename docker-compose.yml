@@ -49,23 +49,11 @@ services:
       - ./docker/rmq/data:/var/lib/rabbitmq
       - ./docker/rmq/log:/var/log/rabbitmq
 
-  db:
-    container_name: msfiles-db
-    image: postgres:14
-    ports:
-      - ${POSTGRES_PORT}:5432
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - msfiles_db_data:/var/lib/postgresql/data
 
 volumes:
   minio_data:
   rmq_data:
   rmq_log:
-  msfiles_db_data:
 
 networks:
   default:

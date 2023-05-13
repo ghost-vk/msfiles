@@ -32,7 +32,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { RequestedAction } from '../auth/requested-action.decorator';
 import { UserAuthPayload } from '../auth/types';
 import { actions, taskStatus } from '../config/actions';
-import { MS_CLIENT } from '../config/constants';
+import { MS_CORE_CLIENT } from '../config/constants';
 import {
   FilesUploadBodyDto,
   FileUploadDto,
@@ -74,7 +74,7 @@ export class ExternalController {
     private readonly minioService: MinioService,
     private readonly filesService: FilesService,
     private readonly prisma: PrismaService,
-    @Inject(MS_CLIENT) private readonly queueClient: ClientProxy,
+    @Inject(MS_CORE_CLIENT) private readonly queueClient: ClientProxy,
   ) {}
 
   @Get('mytasks')

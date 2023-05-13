@@ -5,6 +5,7 @@ RUN yarn install
 RUN yarn build
 
 FROM node:18-alpine
+RUN apk add --no-cache sqlite
 ARG NODE_ENV=production
 ENV NODE_ENV $NODE_ENV
 WORKDIR /app

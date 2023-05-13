@@ -7,7 +7,7 @@ import sharp from 'sharp';
 
 import { PrismaService } from '../../services/prisma.service';
 import { actions, taskStatus } from '../config/actions';
-import { MS_CLIENT } from '../config/constants';
+import { MS_CORE_CLIENT } from '../config/constants';
 import { sentMessages } from './messages';
 import { MinioService } from './minio.service';
 import {
@@ -26,7 +26,7 @@ export class ImageService {
   constructor(
     private readonly minioService: MinioService,
     private readonly prisma: PrismaService,
-    @Inject(MS_CLIENT) private readonly queueClient: ClientProxy,
+    @Inject(MS_CORE_CLIENT) private readonly queueClient: ClientProxy,
   ) {}
 
   processImageWithSharp(
