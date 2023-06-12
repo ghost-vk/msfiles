@@ -1,0 +1,15 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "src",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "testTimeout": 10000,
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "globalTeardown": "../tests/utils/teardown.ts",
+  "coverageDirectory": "e2e-coverage",
+  "collectCoverageFrom": ["./src/**"],
+  "verbose": true,
+  "setupFilesAfterEnv": ["../tests/utils/setup.ts"]
+}

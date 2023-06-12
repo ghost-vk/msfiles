@@ -35,4 +35,11 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-.env
+**/.env
+!**/.env.example
+
+**/*.db
+**/*.db*
+
+docker/rmq/data
+

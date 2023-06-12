@@ -33,7 +33,6 @@ export const loadConfig = (): AppConfig => ({
     ? splitByComma(process.env.MINIO_ADDITIONAL_BUCKETS)
     : [],
   PRISMA_LOGGER_LEVELS_ARRAY: splitByComma(process.env.PRISMA_LOGGER_LEVELS ?? 'error'),
-  JWT_SECRET: process.env.JWT_SECRET as string,
   RABBITMQ_USER: process.env.RABBITMQ_USER as string,
   RABBITMQ_PASSWORD: process.env.RABBITMQ_PASSWORD as string,
   RABBITMQ_HOST: process.env.RABBITMQ_HOST as string,
@@ -42,6 +41,10 @@ export const loadConfig = (): AppConfig => ({
   RABBITMQ_QUEUE_CORE: process.env.RABBITMQ_QUEUE_CORE as string,
   IS_SWAGGER_ENABLED_BOOL: convertEnvToBoolean(process.env.IS_SWAGGER_ENABLED),
   DATABASE_URL: process.env.DATABASE_URL as string,
+  THUMBNAIL_SIZES: process.env.THUMBNAIL_SIZES ?? '300x300::inside',
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD as string,
+  REDIS_PORT: process.env.REDIS_PORT as string,
+  REDIS_HOST: process.env.REDIS_HOST as string,
 });
 
 /**
@@ -73,7 +76,6 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
   MINIO_BUCKET: Joi.string().required().label('MINIO_BUCKET'),
   MINIO_ADDITIONAL_BUCKETS: Joi.string().optional().label('MINIO_ADDITIONAL_BUCKETS'),
   DATABASE_URL: Joi.string().required().label('DATABASE_URL'),
-  JWT_SECRET: Joi.string().required().label('JWT_SECRET'),
   RABBITMQ_USER: Joi.string().required().label('RABBITMQ_USER'),
   RABBITMQ_PASSWORD: Joi.string().required().label('RABBITMQ_PASSWORD'),
   RABBITMQ_HOST: Joi.string().required().label('RABBITMQ_HOST'),
@@ -84,4 +86,8 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
     .required()
     .valid(...availableEnvBoolean)
     .label('IS_SWAGGER_ENABLED'),
+  THUMBNAIL_SIZES: Joi.string().optional().label('THUMBNAIL_SIZES'),
+  REDIS_PASSWORD: Joi.string().required().label('REDIS_PASSWORD'),
+  REDIS_PORT: Joi.string().required().label('REDIS_PORT'),
+  REDIS_HOST: Joi.string().required().label('REDIS_HOST'),
 });

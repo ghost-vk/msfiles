@@ -1,11 +1,17 @@
-export const actions = {
-  uploadImage: 'uploadImage',
-  uploadVideo: 'uploadVideo',
-  uploadFile: 'uploadFile',
-} as const;
+import { isInEnum } from '../../utils/is-in-enum';
 
-export const taskStatus = {
-  done: 'done',
-  inProgress: 'inProgress',
-  error: 'error',
-} as const;
+export enum FileActionsEnum {
+  UploadImage = 'UploadImage',
+  UploadVideo = 'UploadVideo',
+  UploadFile = 'UploadFile',
+}
+
+export const isFileAction = isInEnum(FileActionsEnum);
+
+export enum TaskStatusEnum {
+  Done = 'Done',
+  InProgress = 'InProgress',
+  Error = 'Error',
+}
+
+export const isTaskStatus = isInEnum(TaskStatusEnum);

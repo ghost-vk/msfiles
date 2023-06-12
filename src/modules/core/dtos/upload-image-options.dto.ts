@@ -1,0 +1,43 @@
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsPositive, Max, Min } from 'class-validator';
+
+import { ImageExtensionEnum } from '../types';
+
+export class UploadImageOptionsDto {
+  /**
+   * Quality of target image in range [1, 100]. Default: 80.
+   */
+  @Transform(({ value }) => +value)
+  @Min(0)
+  @Max(100)
+  @IsInt()
+  @IsOptional()
+  q?: number;
+
+  @IsIn(Object.values(ImageExtensionEnum))
+  @IsOptional()
+  ext?: ImageExtensionEnum;
+
+  /**
+   * Target image width in pixels.
+   */
+  @Transform(({ value }) => +value)
+  @IsInt()
+  @IsPositive()
+  @IsOptional()
+  w?: number;
+
+  /**
+   * Target image height in pixels.
+   */
+  @Transform(({ value }) => value)
+  @IsInt()
+  @IsOptional()
+  @IsPositive()
+  h?: number;
+
+  @Transform(({ value }) => value === 'true')
+  @IsBoolean()
+  @IsOptional()
+  convert?: boolean;
+}

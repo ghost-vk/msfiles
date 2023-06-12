@@ -10,7 +10,6 @@ import { Reflector } from '@nestjs/core';
 import { Cache } from 'cache-manager';
 
 import { CreateUploadUrlCacheData } from '../core/types';
-import { AuthContext } from './types';
 
 /**
  * Guard function checks roles in user context.
@@ -26,16 +25,15 @@ export class ActionKeyGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const ctx: AuthContext = context.switchToHttp().getRequest();
+    const ctx = context.switchToHttp().getRequest();
 
     const key = ctx.params?.['key'];
 
     if (!key || typeof key !== 'string') return false;
 
-    this.logger.log(`User [${ctx.user.user_id}] try to use action key [${key}].`);
+    this.logger.log(`Try to use action key [${key}].`);
 
     const requestedAction = this.reflector.get('action', context.getHandler());
-    const user_id = ctx.user.user_id;
 
     const savedKeyData = await this.cache.get(key);
 
@@ -55,12 +53,6 @@ export class ActionKeyGuard implements CanActivate {
 
     if (cacheData.used) {
       this.logger.warn(`Cache key already used.`);
-
-      return false;
-    }
-
-    if (String(cacheData.user_id) !== String(user_id)) {
-      this.logger.warn(`User ID not match saved: [${cacheData.user_id}], passed: [${user_id}].`);
 
       return false;
     }

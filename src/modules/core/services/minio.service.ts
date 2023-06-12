@@ -1,0 +1,235 @@
+import {
+  ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import to from 'await-to-js';
+import { isUndefined, uniq } from 'lodash';
+import { BucketItemStat, Client as MinioClient } from 'minio';
+
+import { AppConfig } from '../../config/types';
+import { PrismaService } from '../../prisma/prisma.service';
+import { PutObjectResult } from '../types';
+
+export type DeleteObjectsParams = {
+  objectnames?: string[];
+  taskIds?: number[];
+  objectIds?: number[];
+  bucket?: string;
+};
+
+@Injectable()
+export class MinioService {
+  private readonly logger = new Logger(MinioService.name);
+  public readonly client: MinioClient;
+  private readonly tempTag = { Temp: 'true' };
+
+  constructor(private readonly config: ConfigService<AppConfig, true>, private readonly prisma: PrismaService) {
+    this.client = new MinioClient({
+      endPoint: config.get('MINIO_HOST'),
+      port: config.get('MINIO_PORT'),
+      useSSL: config.get('MINIO_USE_SSL_BOOL'),
+      accessKey: config.get('MINIO_ROOT_USER'),
+      secretKey: config.get('MINIO_ROOT_PASSWORD'),
+    });
+  }
+
+  get bucket(): string {
+    return this.config.get('MINIO_BUCKET');
+  }
+
+  async saveFile(
+    filepath: string,
+    options: {
+      filename: string;
+      temporary?: boolean;
+      mimetype?: string;
+      bucket?: string;
+    },
+  ): Promise<PutObjectResult> {
+    const bucket = options.bucket ?? this.bucket;
+
+    this.logger.log(`Start: upload file to minio. Options: ${JSON.stringify(options, null, 2)}`);
+
+    const [, fileStatRes] = await to(this.client.statObject(bucket, options.filename));
+
+    if (fileStatRes) {
+      this.logger.error(`File [${options.filename}] already exist.`);
+
+      throw new Error(`File [${options.filename}] already exist.`);
+    }
+
+    const [uploadError] = await to(this.client.fPutObject(bucket, options.filename, filepath));
+
+    if (uploadError) {
+      this.logger.error('Error occured while upload error.', uploadError);
+
+      throw new InternalServerErrorException('File upload error.');
+    }
+
+    if (isUndefined(options.temporary) || options.temporary) {
+      const done = await this.setTemporaryTag(options.filename, { bucket });
+
+      if (!done) {
+        throw new InternalServerErrorException('File upload error.');
+      }
+    }
+
+    const stat = await this.getFileStat(options.filename, { bucket });
+
+    this.logger.log(`Finish: upload file [${options.filename}] to minio.`);
+
+    return {
+      objectname: options.filename,
+      size: stat.size,
+      metadata: stat.metaData,
+      bucket,
+    };
+  }
+
+  async getObjectUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
+    if (options.bucket === 'public') {
+      return this.config.get('BASE_URL') + '/public/' + objectName;
+    }
+
+    return this.getPresignedDownloadUrl(objectName, options);
+  }
+
+  /**
+   * Method creates a signed path where you can get the file from the Minio
+   * URL expired in 1 hour
+   *
+   * @param { string } objectName
+   * @returns { Promise<string> } Download URL
+   */
+  async getPresignedDownloadUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
+    const bucket = options.bucket ?? this.bucket;
+
+    if (this.config.get('NODE_ENV') === 'development') {
+      const [err] = await to(this.client.statObject(bucket, objectName));
+
+      if (err) {
+        throw new NotFoundException('File is not exist.');
+      }
+    }
+
+    return this.client.presignedGetObject(bucket, objectName, 3600);
+  }
+
+  /**
+   * Method deletes file from Minio.
+   * If provide taskId, all related objects will be deleted.
+   * If provide object ids or objectnames, first find objects in database then delete in s3.
+   * If provide objectnames, will be delete directly.
+   *
+   * @param objectName
+   */
+  async deleteObjects(params: DeleteObjectsParams): Promise<boolean> {
+    const bucket = params.bucket ?? this.bucket;
+
+    const objs = await this.prisma.s3Object.findMany({
+      where: { id: { in: params.objectIds }, objectname: { in: params.objectnames }, task_id: { in: params.taskIds } },
+      select: { objectname: true, bucket: true },
+      distinct: 'objectname',
+    });
+
+    const uniqBuckets = uniq(objs.map((o) => o.bucket));
+
+    if (uniqBuckets.length > 1) {
+      throw new ForbiddenException(
+        `Available delete batch of objects only for one bucket. Got buckets [${uniqBuckets.join(', ')}].`,
+      );
+    }
+
+    const objnames = objs.map((o) => o.objectname);
+
+    const [err] = await to(this.client.removeObjects(bucket, objnames));
+
+    if (err) {
+      this.logger.error(`🔴 Error occured when delele objects: [${objnames.join(', ')}].`, err);
+    }
+
+    if (objnames.length) {
+      this.logger.log(`Objects [${objnames.join(', ')}] successfully deleted from bucket [${bucket}].`);
+    } else {
+      this.logger.log(`Nothing to delete. Find objects parameters: ${JSON.stringify(params, null, 2)}.`);
+    }
+
+    return !err;
+  }
+
+  /**
+   * @param {string} objectName Description
+   * @param options
+   */
+  public async setTemporaryTag(objectName: string, options: { bucket?: string } = {}): Promise<boolean> {
+    const bucket = options.bucket ?? this.bucket;
+
+    const [error] = await to(this.client.setObjectTagging(bucket, objectName, this.tempTag));
+
+    this.logger.log(`Set temporary tag to object [${objectName}].`);
+
+    if (error) {
+      this.logger.error(`Error occured while set temporary tag to object [${objectName}].`, error);
+
+      return false;
+    }
+
+    return true;
+  }
+
+  public async removeTemporaryTag(objectname: string, options: { bucket?: string } = {}): Promise<boolean> {
+    const bucket = options.bucket ?? this.bucket;
+
+    const [error] = await to(this.client.removeObjectTagging(bucket, objectname));
+
+    if (error) {
+      this.logger.error(`Error occurred while remove object tags [${objectname}].`, error);
+
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Method creates an URL where you can upload a file to the Minio
+   * URL expired in 1 hour
+   * Set policy max file size to upload 10MB and expires in 1 hour
+   *
+   * @param { string } objectName Filename with extension
+   * @returns { Promise<string> } Upload URL
+   */
+  public async getPresignedUploadUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
+    const bucket = options.bucket ?? this.bucket;
+
+    const [createUploadUrlError, url] = await to(this.client.presignedPutObject(bucket, objectName, 3600));
+
+    if (createUploadUrlError || typeof url !== 'string') {
+      this.logger.error(`An error occurred during creation upload URL: ${createUploadUrlError}`);
+
+      throw new InternalServerErrorException('An error occurred during creation upload URL');
+    }
+
+    return url;
+  }
+
+  /**
+   * Method checks if file exists and returns file info if yes
+   *
+   * @param objectName
+   */
+  async getFileStat(objectName: string, options: { bucket?: string } = {}): Promise<BucketItemStat> {
+    const bucket = options.bucket ?? this.bucket;
+    const [err, data] = await to(this.client.statObject(bucket, objectName));
+
+    if (err) {
+      throw new NotFoundException('File is not exist');
+    }
+
+    return data;
+  }
+}

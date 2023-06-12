@@ -7,7 +7,7 @@
       "ID": "TemporaryFiles",
       "Filter": {
         "Tag": {
-          "Key": "temporary",
+          "Key": "Temp",
           "Value": "true"
         }
       },

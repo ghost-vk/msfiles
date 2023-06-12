@@ -1,34 +1,20 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-import { PrismaService } from '../../services/prisma.service';
-import { taskStatus } from '../config/actions';
-import { AuthContext } from './types';
+import { TaskStatusEnum } from '../config/actions';
+import { PrismaService } from '../prisma/prisma.service';
 
 /**
- * Guard function checks roles in user context.
- * Use it with {@link RequiredRoles}.
+ * Guard class checks number of concurrently active tasks.
  */
 @Injectable()
 export class ConcurrencyUploadGuard implements CanActivate {
   private readonly logger = new Logger(ConcurrencyUploadGuard.name);
+  private readonly maxConcurrentTask = 5;
 
   constructor(private readonly reflector: Reflector, private readonly prisma: PrismaService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const ctx: AuthContext = context.switchToHttp().getRequest();
-
-    if (!ctx.user || !ctx.user.user_id) {
-      throw new UnauthorizedException('Authentication required');
-    }
-
     const requestedAction = this.reflector.get('action', context.getHandler());
 
     if (!requestedAction) {
@@ -41,18 +27,15 @@ export class ConcurrencyUploadGuard implements CanActivate {
 
     const userActiveTaskCount = await this.prisma.task.count({
       where: {
-        actor: String(ctx.user.user_id),
         action: requestedAction,
-        status: taskStatus.inProgress,
+        status: TaskStatusEnum.InProgress,
       },
     });
 
-    if (userActiveTaskCount > 0) {
-      this.logger.warn(`User [${ctx.user.user_id}] try to act [${requestedAction}] concurrently.`);
+    if (userActiveTaskCount > this.maxConcurrentTask) {
+      this.logger.warn(`Request to make more than max concurrently tasks [${this.maxConcurrentTask}].`);
 
-      throw new ForbiddenException(
-        `Only 1 simultaneously action [${requestedAction}] is available.`,
-      );
+      throw new ForbiddenException(`Service is overloaded.`);
     }
 
     return true;

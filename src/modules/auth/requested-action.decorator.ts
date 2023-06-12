@@ -1,6 +1,6 @@
 import { CustomDecorator, SetMetadata } from '@nestjs/common';
 
-import { actions } from '../config/actions';
+import { FileActionsEnum } from '../config/actions';
 
 /**
  * Function creates decorator which set request action metadata for check it in {@link ConcurrencyUploadGuard}.
@@ -9,6 +9,5 @@ import { actions } from '../config/actions';
  * @UseGuards(RoleGuard)
  * @RequestedAction(actions.uploadVideo)
  */
-export const RequestedAction = (
-  requestedAction: (typeof actions)[keyof typeof actions],
-): CustomDecorator => SetMetadata('action', requestedAction);
+export const RequestedAction = (requestedAction: FileActionsEnum): CustomDecorator =>
+  SetMetadata('action', requestedAction);

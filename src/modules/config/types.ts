@@ -18,7 +18,6 @@ export interface AppConfig {
   MINIO_BUCKET: string;
   MINIO_ADDITIONAL_BUCKETS_ARRAY: string[];
   PRISMA_LOGGER_LEVELS_ARRAY: string[];
-  JWT_SECRET: string;
   RABBITMQ_USER: string;
   RABBITMQ_PASSWORD: string;
   RABBITMQ_HOST: string;
@@ -27,6 +26,10 @@ export interface AppConfig {
   RABBITMQ_PORT: number;
   IS_SWAGGER_ENABLED_BOOL: boolean;
   DATABASE_URL: string;
+  THUMBNAIL_SIZES: string;
+  REDIS_PASSWORD: string;
+  REDIS_PORT: string;
+  REDIS_HOST: string;
 }
 
 export type EnvBoolean = 'y' | 'n';
@@ -47,7 +50,6 @@ export interface EnvVariables {
   MINIO_BUCKET: string;
   MINIO_ADDITIONAL_BUCKETS?: string;
   PRISMA_LOGGER_LEVELS: string;
-  JWT_SECRET: string;
   RABBITMQ_USER: string;
   RABBITMQ_PASSWORD: string;
   RABBITMQ_HOST: string;
@@ -56,4 +58,8 @@ export interface EnvVariables {
   RABBITMQ_PORT: number;
   IS_SWAGGER_ENABLED: EnvBoolean;
   DATABASE_URL: string;
+  THUMBNAIL_SIZES: string;
+  REDIS_PASSWORD: string;
+  REDIS_PORT: string;
+  REDIS_HOST: string;
 }

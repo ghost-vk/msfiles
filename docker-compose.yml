@@ -23,6 +23,20 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
 
+  minio-test:
+    profiles: [ "test" ]
+    image: "minio/minio:latest"
+    container_name: msfiles-minio-test
+    ports:
+      - ${MINIO_PORT}:9000
+      - ${MINIO_CONSOLE_PORT}:9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_test_data:/data
+    command: server /data --console-address ":9001"
+
   mc:
     image: minio/mc
     container_name: msfiles-mc
@@ -32,6 +46,22 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET: ${MINIO_BUCKET}
+      MINIO_CONTAINER_NAME: 'minio'
+    volumes:
+      - ./docker/minio:/entrypoint
+    entrypoint: >
+      /bin/sh -c "cd /entrypoint && /bin/sh ./minio-client-entrypoint.sh"
+
+  mc-test:
+    image: minio/mc
+    container_name: msfiles-mc-test
+#    depends_on:
+#      - minio-test
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      MINIO_CONTAINER_NAME: 'minio-test'
     volumes:
       - ./docker/minio:/entrypoint
     entrypoint: >
@@ -39,6 +69,7 @@ services:
 
   rmq:
     image: rabbitmq:3.11.8-management-alpine
+    container_name: msfiles-rmq
     ports:
       - ${RABBITMQ_PORT}:5672
       - ${RABBITMQ_UI_PORT}:15672
@@ -49,11 +80,23 @@ services:
       - ./docker/rmq/data:/var/lib/rabbitmq
       - ./docker/rmq/log:/var/log/rabbitmq
 
+  redis:
+    profiles: [ "dev" ]
+    image: redis:alpine
+    container_name: msfiles-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - ${REDIS_PORT}:6379
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
 
 volumes:
   minio_data:
+  minio_test_data:
   rmq_data:
   rmq_log:
+  redis_data:
 
 networks:
   default:

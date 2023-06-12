@@ -1,97 +1,54 @@
-import { Transform } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { isUUID } from 'class-validator';
+import { isUndefined } from 'lodash';
 
-import { actions } from '../config/actions';
-import { splitByComma } from '../config/utils';
+import { isInEnum } from '../../utils/is-in-enum';
+import { FileActionsEnum, isFileAction } from '../config/actions';
 
-export type ImageExtensions = 'png' | 'jpeg' | 'webp';
+export type BooleanString = 'y' | 'n';
 
-export type ImageSize = {
-  width: number;
-  height: number;
-};
+export enum ImageExtensionEnum {
+  Png = 'png',
+  Jpeg = 'jpeg',
+  Jpg = 'jpg',
+  Webp = 'webp',
+}
+
+export const isImageExtension = isInEnum(ImageExtensionEnum);
 
 export type CompressImageBufferOptions = {
   quality?: number;
-  ext?: ImageExtensions;
-} & Partial<ImageSize>;
+  ext?: ImageExtensionEnum;
+} & Partial<Size>;
 
-export type VideoExtensions = 'webm' | 'mp4' | 'hls';
+export enum VideoExtensionEnum {
+  Webm = 'webm',
+  Mp4 = 'mp4',
+  Hls = 'hls',
+}
 
-export type VideoSize = {
+export const isVideoExtension = isInEnum(VideoExtensionEnum);
+
+export type Size = {
   width: number;
   height: number;
 };
 
-export type VideoConversionPayload = {
-  originalname: string;
-  ext: VideoExtensions;
-  dir: string;
-  filename: string;
-  compress?: string;
-  task_id: number;
-  sizes?: VideoSize[];
-  actor: number | string;
-  bucket?: string;
-  uid: string;
-};
-
-export type ImageConversionPayload = {
-  originalname: string;
-  ext: ImageExtensions;
-  dir: string;
-  filename: string;
-  task_id: number;
-  quality?: number;
-  actor: number | string;
-  bucket?: string;
-  uid: string;
-} & Partial<ImageSize>;
-
-export class CreateUploadUrlPayload {
-  @IsNotEmpty()
-  @IsString()
-  @IsIn(Object.values(actions))
-  action: (typeof actions)[keyof typeof actions];
-
-  @IsInt()
-  @Transform(({ value }) => Number(value))
-  user_id: number;
-
-  @IsIn(
-    (process.env.MINIO_ADDITIONAL_BUCKETS ? splitByComma(process.env.MINIO_ADDITIONAL_BUCKETS) : []).concat(
-      process.env.MINIO_BUCKET as string,
-    ),
-  )
-  @IsOptional()
-  bucket?: string;
-
-  @IsUUID()
-  uid: string;
-}
-
 export type CreateUploadUrlCacheData = {
-  action: (typeof actions)[keyof typeof actions];
-  user_id: string | number;
+  action: FileActionsEnum;
   bucket?: string;
   used?: boolean;
   uid: string;
 };
 
-export class DeleteObjectsPayload {
-  @IsArray()
-  @IsString({ each: true })
-  @IsNotEmpty({ each: true })
-  @ArrayMinSize(1)
-  objects: string[];
-}
+export function isCreateUploadUrlCacheData(obj: unknown): obj is CreateUploadUrlCacheData {
+  if (typeof obj !== 'object') return false;
+  if (obj === null) return false;
+  if (!isFileAction(obj['action'])) return false;
+  if (!isUndefined(obj['bucket']) && typeof obj['bucket'] !== 'string') return false;
+  if (!isUndefined(obj['used']) && typeof obj['used'] !== 'boolean') return false;
+  if (!isUUID(obj['uid'])) return false;
 
-export class RemoveTemporaryTagPayload {
-  @IsArray()
-  @IsString({ each: true })
-  @IsNotEmpty({ each: true })
-  @ArrayMinSize(1)
-  objects: string[];
+  return true;
 }
 
 export type PutObjectResult = {
@@ -101,48 +58,12 @@ export type PutObjectResult = {
   bucket: string;
 };
 
-export type FileType = 'mainFile' | 'thumbnail' | 'altVideo' | 'preview';
+export enum FileTypeEnum {
+  MainFile = 'MainFile',
+  Thumbnail = 'Thumbnail',
+  AltVideo = 'AltVideo',
+  Preview = 'Preview',
+  Part = 'Part',
+}
 
-export type MessageUploadPayload = {
-  action: (typeof actions)[keyof typeof actions];
-  objectname: string;
-  originalname: string;
-  size: number;
-  type: FileType;
-  metadata?: Record<string, unknown>;
-  height?: number;
-  width?: number;
-  bucket: string;
-  task_id: number;
-  uid: string;
-  created_at: Date;
-  actor: string | number;
-};
-
-export type MessageAsyncUploadError = {
-  task_id: number;
-  action: (typeof actions)[keyof typeof actions];
-  created_at: Date;
-  actor: string | number;
-  message?: string;
-  metadata?: Record<string, unknown>;
-  uid: string;
-};
-
-export type ObjectMetadata = {
-  actor?: number | string;
-  height?: number;
-  width?: number;
-};
-
-export type TaskCompletedPayload = {
-  task_id: number;
-  uid: string;
-};
-
-export type ProcessImageOptions = {
-  quality?: number;
-  width?: number;
-  height?: number;
-  fit?: 'contain' | 'cover' | 'fill' | 'inside' | 'outside';
-};
+export const isFileType = isInEnum(FileTypeEnum);
