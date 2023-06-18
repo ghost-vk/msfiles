@@ -30,7 +30,7 @@ export class UploadImageOptionsDto {
   /**
    * Target image height in pixels.
    */
-  @Transform(({ value }) => value)
+  @Transform(({ value }) => +value)
   @IsInt()
   @IsOptional()
   @IsPositive()

@@ -210,7 +210,7 @@ export class VideoProcessorService implements OnModuleInit {
 
       const pImage = await this.imageSaver.save({
         bucket: input.bucket ?? this.minioService.bucket,
-        filetype: FileTypeEnum.MainFile,
+        filetype: FileTypeEnum.Preview,
         originalname: input.originalname,
         size: pImageSize,
         taskId: task.id,
@@ -224,7 +224,7 @@ export class VideoProcessorService implements OnModuleInit {
         objectname: pImage.s3obj.objectname,
         originalname: input.originalname,
         size: pImage.s3obj.size,
-        type: FileTypeEnum.Thumbnail,
+        type: FileTypeEnum.Preview,
         bucket: pImage.s3obj.bucket,
         task_id: input.task_id,
         created_at: task.created_at,
@@ -242,11 +242,11 @@ export class VideoProcessorService implements OnModuleInit {
 
         const pImage = await this.imageSaver.save({
           bucket: input.bucket ?? this.minioService.bucket,
-          filetype: FileTypeEnum.MainFile,
+          filetype: FileTypeEnum.Thumbnail,
           originalname: input.originalname,
           size: tImageSize,
           taskId: task.id,
-          tempFilepath: previewTempFilepath,
+          tempFilepath: t.filepath,
           main: false,
         });
 
