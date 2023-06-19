@@ -28,21 +28,23 @@ export class UploadVideoOptionsDto {
     ({ value }: { value: string | undefined }): VideoSizeDto[] => {
       if (!value) return [];
 
-      if (!new RegExp(/\[|\]/g, '').test(value)) {
-        throw new BadRequestException('Wrong input');
+      const errMsg = `Parameter [s] must be in format [<width1>x<height1>,<width2>x<height2>,etc.]. Example: [1280x720], [1280x720,680x360].`;
+
+      if (!new RegExp(/\[|]/g, '').test(value)) {
+        throw new BadRequestException([errMsg]);
       }
 
-      const sizes = value.replace(/\[|\]/g, '').split(',');
+      const sizes = value.replace(/\[|]/g, '').split(',');
 
       if (!sizes.length) {
-        throw new BadRequestException('Wrong input');
+        throw new BadRequestException([errMsg]);
       }
 
       return sizes.map((s) => {
         const i = s.split('x');
 
         if (!i[0] || !i[1] || i.length !== 2) {
-          throw new BadRequestException('Wrong input');
+          throw new BadRequestException(errMsg);
         }
 
         return new VideoSizeDto(+i[0], +i[1]);

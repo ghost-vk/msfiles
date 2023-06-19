@@ -2,7 +2,7 @@ import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import to from 'await-to-js';
 import { readdir } from 'fs/promises';
-import { isUndefined } from 'lodash';
+import { isUndefined, sortBy } from 'lodash';
 import { dirname, extname, join } from 'path';
 import { Subject } from 'rxjs';
 
@@ -24,7 +24,8 @@ import { ThumbnailMakerService } from './thumbnail-maker.service';
 import { VideoConverterService } from './video-converter.service';
 
 /**
- * @property { VideoExtensionEnum } ext Will be ignored if convert=false
+ * @property ext - Will be ignored if convert=false
+ * @property dir - Temporary folder
  */
 export type VideoConversionPayload = {
   originalname: string;
@@ -81,7 +82,7 @@ export class VideoProcessorService implements OnModuleInit {
     try {
       const orgnVideoSize = await this.sizeDetector.getVideoSize(orgnFileTmpPath);
 
-      const sortedSizes = input.sizes && input.sizes.length ? input.sizes : [orgnVideoSize];
+      const sortedSizes = input.sizes && input.sizes.length ? sortBy(input.sizes, ['width']) : [orgnVideoSize];
 
       this.logger.debug(`Try convert [${input.originalname}] to sizes: ${JSON.stringify(sortedSizes, null, 2)}.`);
 

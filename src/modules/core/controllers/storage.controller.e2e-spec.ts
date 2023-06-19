@@ -1955,5 +1955,315 @@ describe('Storage controller (external endpoint)', () => {
         }),
       );
     });
+
+    it('should throw bad request if wrong exception', async () => {
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadVideo, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      const { body } = await request(server)
+        .post(`/storage/uploadVideo/${key}?ext=pdf`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', 'test.mov'))
+        .expect(400);
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          statusCode: 400,
+          message: expect.arrayContaining(['ext must be one of the following values: webm, mp4, hls']),
+          error: 'Bad Request',
+        }),
+      );
+    });
+
+    it('should throw bad request if wrong sizes', async () => {
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadVideo, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      // should be instead [1000x1000,800x800]
+      const wrongSizeParam1 = '1000x1000,800x800';
+
+      const { body } = await request(server)
+        .post(`/storage/uploadVideo/${key}?s=${wrongSizeParam1}`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', 'test.mov'))
+        .expect(400);
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          statusCode: 400,
+          message: expect.arrayContaining([
+            `Parameter [s] must be in format [<width1>x<height1>,<width2>x<height2>,etc.]. Example: [1280x720], [1280x720,680x360].`,
+          ]),
+          error: 'Bad Request',
+        }),
+      );
+
+      const uid2 = randomUUID();
+      const key2 = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadVideo, uid: uid2, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      // should be instead [1000x1000,800x800]
+      const wrongSizeParam2 = '1000,800';
+
+      const res2 = await request(server)
+        .post(`/storage/uploadVideo/${key2.key}?s=${wrongSizeParam2}`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', 'test.mov'))
+        .expect(400);
+
+      expect(res2.body).toEqual(
+        expect.objectContaining({
+          statusCode: 400,
+          message: expect.arrayContaining([
+            `Parameter [s] must be in format [<width1>x<height1>,<width2>x<height2>,etc.]. Example: [1280x720], [1280x720,680x360].`,
+          ]),
+          error: 'Bad Request',
+        }),
+      );
+    });
+
+    it('should successfully convert mov file to multiple sizes and mp4 ext', async () => {
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadVideo, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      const { body } = await request(server)
+        .post(`/storage/uploadVideo/${key}?ext=mp4&s=[720x480,480x360]`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', 'test.mov'))
+        .expect(201);
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          id: expect.any(Number),
+          uid: uid,
+          status: TaskStatusEnum.InProgress,
+          action: FileActionsEnum.UploadVideo,
+          originalname: 'test.mov',
+          bucket: config.get('MINIO_BUCKET'),
+          parameters: '{"ext":"mp4","s":[{"w":720,"h":480},{"w":480,"h":360}]}',
+          created_at: expect.any(String),
+          updated_at: expect.any(String),
+        }),
+      );
+
+      let task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      expect(task).toEqual(
+        expect.objectContaining({
+          id: body.id,
+          uid: uid,
+          status: TaskStatusEnum.InProgress,
+          action: FileActionsEnum.UploadVideo,
+          originalname: 'test.mov',
+          bucket: config.get('MINIO_BUCKET'),
+          parameters: '{"ext":"mp4","s":[{"w":720,"h":480},{"w":480,"h":360}]}',
+          created_at: expect.any(Date),
+          updated_at: expect.any(Date),
+        }),
+      );
+
+      const deadline = new Date();
+
+      deadline.setSeconds(deadline.getSeconds() + 60);
+
+      while (task.status !== TaskStatusEnum.Done) {
+        await sleep(500);
+        task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+        if (new Date() > deadline) {
+          throw new Error('Time is up.');
+        }
+      }
+
+      const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
+
+      const previewFilesCount = 1;
+      const mainFileCount = 1;
+      const altVideoSizeFileCount = 1;
+
+      expect(files.length).toBe(THUMBNAILS_COUNT + previewFilesCount + mainFileCount + altVideoSizeFileCount);
+
+      const mainFile = files.find((f) => f.main === true);
+
+      if (!mainFile) throw Error('Main file not set.');
+
+      expect(files).toEqual(
+        expect.arrayContaining([
+          // main file
+          expect.objectContaining({
+            id: expect.any(Number),
+            task_id: body.id,
+            main: true,
+            objectname: expect.stringMatching(/^test_720x480_mf.{6}\.mp4$/),
+            bucket: config.get('MINIO_BUCKET'),
+            size: mainFile.size,
+            created_at: expect.any(Date),
+            updated_at: expect.any(Date),
+          }),
+          // alt video size
+          expect.objectContaining({
+            id: expect.any(Number),
+            task_id: body.id,
+            main: false,
+            objectname: expect.stringMatching(/^test_480x360_av.{6}\.mp4$/),
+            bucket: config.get('MINIO_BUCKET'),
+            size: expect.any(String),
+            created_at: expect.any(Date),
+            updated_at: expect.any(Date),
+          }),
+          // preview
+          expect.objectContaining({
+            id: expect.any(Number),
+            task_id: body.id,
+            main: false,
+            objectname: expect.stringMatching(/^test_720x480_pr.{6}\.webp$/),
+            bucket: config.get('MINIO_BUCKET'),
+            size: expect.any(String),
+            created_at: expect.any(Date),
+            updated_at: expect.any(Date),
+          }),
+        ]),
+      );
+
+      if (THUMBNAILS_COUNT) {
+        expect(files).toEqual(
+          expect.arrayContaining([
+            // thumbnail for preview
+            expect.objectContaining({
+              id: expect.any(Number),
+              task_id: body.id,
+              main: false,
+              objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.webp$/),
+              bucket: config.get('MINIO_BUCKET'),
+              size: expect.any(String),
+              created_at: expect.any(Date),
+              updated_at: expect.any(Date),
+            }),
+          ]),
+        );
+      }
+
+      expect(task).toEqual(expect.objectContaining({ status: TaskStatusEnum.Done }));
+
+      // Проверим что файлы загружены в minio
+      const obj1 = await minio.getFileStat(files[0].objectname, { bucket: config.get('MINIO_BUCKET') });
+      const obj2 = await minio.getFileStat(files[1].objectname, { bucket: config.get('MINIO_BUCKET') });
+      const obj3 = await minio.getFileStat(files[2].objectname, { bucket: config.get('MINIO_BUCKET') });
+
+      expect(obj1).toBeTruthy();
+      expect(obj2).toBeTruthy();
+      expect(obj3).toBeTruthy();
+
+      expect(taskStartMessages.length).toBe(1);
+
+      expect(taskStartMessages[0]).toEqual(
+        expect.objectContaining({
+          task_id: task.id,
+          uid: uid,
+          action: FileActionsEnum.UploadVideo,
+          status: TaskStatusEnum.InProgress,
+          created_at: expect.any(String),
+        }),
+      );
+
+      const imagesCount = THUMBNAILS_COUNT + previewFilesCount;
+
+      expect(uploadedImageMessages.length).toBe(imagesCount);
+
+      expect(uploadedImageMessages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: FileActionsEnum.UploadVideo,
+            status: TaskStatusEnum.InProgress,
+            objectname: expect.stringMatching(/^test_720x480_pr.{6}\.webp$/),
+            originalname: 'test.mov',
+            size: expect.any(Number),
+            type: FileTypeEnum.Preview,
+            bucket: config.get('MINIO_BUCKET'),
+            task_id: task.id,
+            created_at: expect.any(String),
+            uid: uid,
+            width: 720,
+            height: 480,
+            metadata: expect.objectContaining({
+              'content-type': 'image/webp',
+            }),
+          }),
+        ]),
+      );
+
+      if (THUMBNAILS_COUNT) {
+        expect(uploadedImageMessages).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              action: FileActionsEnum.UploadVideo,
+              status: TaskStatusEnum.InProgress,
+              objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.webp$/),
+              originalname: 'test.mov',
+              size: expect.any(Number),
+              type: FileTypeEnum.Thumbnail,
+              bucket: config.get('MINIO_BUCKET'),
+              task_id: task.id,
+              created_at: expect.any(String),
+              uid: uid,
+            }),
+          ]),
+        );
+      }
+
+      // main video + alt video
+      expect(uploadedVideoMessages.length).toBe(2);
+      expect(uploadedVideoMessages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: FileActionsEnum.UploadVideo,
+            status: TaskStatusEnum.InProgress,
+            objectname: mainFile.objectname,
+            originalname: 'test.mov',
+            size: Number(mainFile.size),
+            type: FileTypeEnum.MainFile,
+            bucket: config.get('MINIO_BUCKET'),
+            task_id: task.id,
+            created_at: expect.any(String),
+            uid: uid,
+          }),
+          expect.objectContaining({
+            action: FileActionsEnum.UploadVideo,
+            status: TaskStatusEnum.InProgress,
+            objectname: expect.stringMatching(/^test_480x360_av.{6}\.mp4$/),
+            originalname: 'test.mov',
+            size: expect.any(Number),
+            type: FileTypeEnum.AltVideo,
+            bucket: config.get('MINIO_BUCKET'),
+            task_id: task.id,
+            created_at: expect.any(String),
+            uid: uid,
+          }),
+        ]),
+      );
+
+      await sleep(1200);
+
+      expect(taskCompletedMessages.length).toBe(1);
+
+      expect(taskCompletedMessages[0]).toEqual(
+        expect.objectContaining({
+          action: FileActionsEnum.UploadVideo,
+          status: TaskStatusEnum.Done,
+          task_id: task.id,
+          uid: uid,
+        }),
+      );
+    });
   });
 });
