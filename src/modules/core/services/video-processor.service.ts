@@ -23,6 +23,9 @@ import { TempTagRemoverService } from './temp-tag-remover.service';
 import { ThumbnailMakerService } from './thumbnail-maker.service';
 import { VideoConverterService } from './video-converter.service';
 
+/**
+ * @property { VideoExtensionEnum } ext Will be ignored if convert=false
+ */
 export type VideoConversionPayload = {
   originalname: string;
   ext: VideoExtensionEnum;
@@ -88,7 +91,13 @@ export class VideoProcessorService implements OnModuleInit {
 
       if (input.convert === false) {
         this.logger.log(`Upload video file [${input.originalname}] without conversion.`);
-        const mainFileName = this.filenameService.generateFilename(input.originalname, { ext: input.ext });
+        const orgnExt = extname(input.originalname).replace('.', '');
+        const orgnVideoSize = await this.sizeDetector.getVideoSize(orgnFileTmpPath);
+        const mainFileName = this.filenameService.generateFilename(input.originalname, {
+          ext: orgnExt,
+          type: FileTypeEnum.MainFile,
+          ...orgnVideoSize,
+        });
         const mainFileObj = await this.minioService.saveFile(orgnFileTmpPath, {
           filename: mainFileName,
           temporary: true,

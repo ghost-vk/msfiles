@@ -221,9 +221,12 @@ export class StorageController {
   }
 
   /**
-   * Controller writes file to temprorary folder and call compressor
-   * {@link FileProcessorService} through rxjs subject without response waiting,
-   * requester will be notified through queue.
+   * Controller writes file to temporary folder and call video processor
+   * {@link VideoProcessorService} through rxjs subject without response waiting.
+   * Requester will be notified through queue.
+   *
+   * By default method (downstream processor {@link VideoProcessorService}) tries to convert video.
+   * Only if `options.convert=false` processor uploads raw video to storage.
    */
   @Post('uploadVideo/:key')
   @UseInterceptors(FileInterceptor('file'), ClassSerializerInterceptor)
