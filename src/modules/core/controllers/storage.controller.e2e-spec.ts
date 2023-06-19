@@ -1719,7 +1719,6 @@ describe('Storage controller (external endpoint)', () => {
       );
 
       expect(uploadedVideoMessages.length).toBe(1);
-      console.log(JSON.stringify(uploadedVideoMessages, null, 2));
       expect(uploadedVideoMessages).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -1733,6 +1732,212 @@ describe('Storage controller (external endpoint)', () => {
             task_id: task.id,
             created_at: expect.any(String),
             uid: uid,
+          }),
+        ]),
+      );
+
+      await sleep(1000);
+
+      expect(taskCompletedMessages.length).toBe(1);
+
+      expect(taskCompletedMessages[0]).toEqual(
+        expect.objectContaining({
+          action: FileActionsEnum.UploadVideo,
+          status: TaskStatusEnum.Done,
+          task_id: task.id,
+          uid: uid,
+        }),
+      );
+    });
+
+    it('should successfully upload mov file without conversion', async () => {
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadVideo, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      const { body } = await request(server)
+        .post(`/storage/uploadVideo/${key}?convert=false`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', 'test.mov'))
+        .expect(201);
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          id: expect.any(Number),
+          uid: uid,
+          status: TaskStatusEnum.InProgress,
+          action: FileActionsEnum.UploadVideo,
+          originalname: 'test.mov',
+          bucket: config.get('MINIO_BUCKET'),
+          parameters: '{"convert":false}',
+          created_at: expect.any(String),
+          updated_at: expect.any(String),
+        }),
+      );
+
+      let task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      expect(task).toEqual(
+        expect.objectContaining({
+          id: body.id,
+          uid: uid,
+          status: TaskStatusEnum.InProgress,
+          action: FileActionsEnum.UploadVideo,
+          originalname: 'test.mov',
+          bucket: config.get('MINIO_BUCKET'),
+          parameters: '{"convert":false}',
+          created_at: expect.any(Date),
+          updated_at: expect.any(Date),
+        }),
+      );
+
+      const deadline = new Date();
+
+      deadline.setSeconds(deadline.getSeconds() + 60);
+
+      while (task.status !== TaskStatusEnum.Done) {
+        await sleep(500);
+        task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+        if (new Date() > deadline) {
+          throw new Error('Time is up.');
+        }
+      }
+
+      const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
+
+      const previewFilesCount = 1;
+      const mainFileCount = 1;
+
+      expect(files.length).toBe(THUMBNAILS_COUNT + previewFilesCount + mainFileCount);
+
+      const mainFile = files.find((f) => f.main === true);
+
+      if (!mainFile) throw Error('Main file not set.');
+
+      expect(files).toEqual(
+        expect.arrayContaining([
+          // main file
+          expect.objectContaining({
+            id: expect.any(Number),
+            task_id: body.id,
+            main: true,
+            objectname: expect.stringMatching(/^test_720x480_mf.{6}\.mov$/),
+            bucket: config.get('MINIO_BUCKET'),
+            size: mainFile.size,
+            created_at: expect.any(Date),
+            updated_at: expect.any(Date),
+          }),
+          // preview
+          expect.objectContaining({
+            id: expect.any(Number),
+            task_id: body.id,
+            main: false,
+            objectname: expect.stringMatching(/^test_720x480_pr.{6}\.webp$/),
+            bucket: config.get('MINIO_BUCKET'),
+            size: expect.any(String),
+            created_at: expect.any(Date),
+            updated_at: expect.any(Date),
+          }),
+          // thumbnail for preview
+          expect.objectContaining({
+            id: expect.any(Number),
+            task_id: body.id,
+            main: false,
+            objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.webp$/),
+            bucket: config.get('MINIO_BUCKET'),
+            size: expect.any(String),
+            created_at: expect.any(Date),
+            updated_at: expect.any(Date),
+          }),
+        ]),
+      );
+
+      expect(task).toEqual(expect.objectContaining({ status: TaskStatusEnum.Done }));
+
+      // Проверим что файлы загружены в minio
+      const obj1 = await minio.getFileStat(files[0].objectname, { bucket: config.get('MINIO_BUCKET') });
+      const obj2 = await minio.getFileStat(files[1].objectname, { bucket: config.get('MINIO_BUCKET') });
+      const obj3 = await minio.getFileStat(files[2].objectname, { bucket: config.get('MINIO_BUCKET') });
+
+      expect(obj1).toBeTruthy();
+      expect(obj2).toBeTruthy();
+      expect(obj3).toBeTruthy();
+
+      expect(taskStartMessages.length).toBe(1);
+
+      expect(taskStartMessages[0]).toEqual(
+        expect.objectContaining({
+          task_id: task.id,
+          uid: uid,
+          action: FileActionsEnum.UploadVideo,
+          status: TaskStatusEnum.InProgress,
+          created_at: expect.any(String),
+        }),
+      );
+
+      const imagesCount = THUMBNAILS_COUNT + previewFilesCount;
+
+      expect(uploadedImageMessages.length).toBe(imagesCount);
+
+      expect(uploadedImageMessages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: FileActionsEnum.UploadVideo,
+            status: TaskStatusEnum.InProgress,
+            objectname: expect.stringMatching(/^test_720x480_pr.{6}\.webp$/),
+            originalname: 'test.mov',
+            size: expect.any(Number),
+            type: FileTypeEnum.Preview,
+            bucket: config.get('MINIO_BUCKET'),
+            task_id: task.id,
+            created_at: expect.any(String),
+            uid: uid,
+            width: 720,
+            height: 480,
+            metadata: expect.objectContaining({
+              'content-type': 'image/webp',
+            }),
+          }),
+        ]),
+      );
+
+      if (THUMBNAILS_COUNT) {
+        expect(uploadedImageMessages).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              action: FileActionsEnum.UploadVideo,
+              status: TaskStatusEnum.InProgress,
+              objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.webp$/),
+              originalname: 'test.mov',
+              size: expect.any(Number),
+              type: FileTypeEnum.Thumbnail,
+              bucket: config.get('MINIO_BUCKET'),
+              task_id: task.id,
+              created_at: expect.any(String),
+              uid: uid,
+            }),
+          ]),
+        );
+      }
+
+      expect(uploadedVideoMessages.length).toBe(1);
+      expect(uploadedVideoMessages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: FileActionsEnum.UploadVideo,
+            status: TaskStatusEnum.InProgress,
+            objectname: mainFile.objectname,
+            originalname: 'test.mov',
+            size: Number(mainFile.size),
+            type: FileTypeEnum.MainFile,
+            bucket: config.get('MINIO_BUCKET'),
+            task_id: task.id,
+            created_at: expect.any(String),
+            uid: uid,
+            width: 720,
+            height: 480,
           }),
         ]),
       );
