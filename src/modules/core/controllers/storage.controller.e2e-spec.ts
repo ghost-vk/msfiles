@@ -32,6 +32,7 @@ describe('Storage controller (external endpoint)', () => {
   let minio: MinioService;
   let connection: Connection;
   let channel: Channel;
+  let THUMBNAILS_COUNT: number;
 
   const taskStartMessages: string[] = [];
   const uploadedFilesMessages: string[] = [];
@@ -103,6 +104,10 @@ describe('Storage controller (external endpoint)', () => {
       queue: 'uploaded_video_queue',
       messages: uploadedVideoMessages,
     });
+
+    const thumbnailMaker = app.get(ThumbnailMakerService);
+
+    THUMBNAILS_COUNT = thumbnailMaker.thumnailsCount;
   });
 
   afterEach(async () => {
@@ -428,9 +433,7 @@ describe('Storage controller (external endpoint)', () => {
 
       const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
 
-      const thumbnailMaker = app.get(ThumbnailMakerService);
-
-      expect(files.length).toBe(thumbnailMaker.thumnailsCount + 1);
+      expect(files.length).toBe(THUMBNAILS_COUNT + 1);
 
       expect(files).toEqual(
         expect.arrayContaining([
@@ -503,15 +506,15 @@ describe('Storage controller (external endpoint)', () => {
         ]),
       );
 
-      if (thumbnailMaker.thumnailsCount > 0) {
+      if (THUMBNAILS_COUNT > 0) {
         const thumbnailObjs = await prisma.s3Object.findMany({
           where: { task_id: task.id, main: false },
         });
 
-        expect(thumbnailObjs.length).toBe(thumbnailMaker.thumnailsCount);
+        expect(thumbnailObjs.length).toBe(THUMBNAILS_COUNT);
         let i = 0;
 
-        while (i < thumbnailMaker.thumnailsCount) {
+        while (i < THUMBNAILS_COUNT) {
           const obj = thumbnailObjs[i];
 
           expect(uploadedImageMessages).toEqual(
@@ -612,9 +615,7 @@ describe('Storage controller (external endpoint)', () => {
 
       const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
 
-      const thumbnailMaker = app.get(ThumbnailMakerService);
-
-      expect(files.length).toBe(thumbnailMaker.thumnailsCount + 1);
+      expect(files.length).toBe(THUMBNAILS_COUNT + 1);
 
       expect(files).toEqual(
         expect.arrayContaining([
@@ -687,15 +688,15 @@ describe('Storage controller (external endpoint)', () => {
         ]),
       );
 
-      if (thumbnailMaker.thumnailsCount > 0) {
+      if (THUMBNAILS_COUNT > 0) {
         const thumbnailObjs = await prisma.s3Object.findMany({
           where: { task_id: task.id, main: false },
         });
 
-        expect(thumbnailObjs.length).toBe(thumbnailMaker.thumnailsCount);
+        expect(thumbnailObjs.length).toBe(THUMBNAILS_COUNT);
         let i = 0;
 
-        while (i < thumbnailMaker.thumnailsCount) {
+        while (i < THUMBNAILS_COUNT) {
           const obj = thumbnailObjs[i];
 
           expect(uploadedImageMessages).toEqual(
@@ -796,9 +797,7 @@ describe('Storage controller (external endpoint)', () => {
 
       const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
 
-      const thumbnailMaker = app.get(ThumbnailMakerService);
-
-      expect(files.length).toBe(thumbnailMaker.thumnailsCount + 1);
+      expect(files.length).toBe(THUMBNAILS_COUNT + 1);
 
       expect(files).toEqual(
         expect.arrayContaining([
@@ -871,15 +870,15 @@ describe('Storage controller (external endpoint)', () => {
         ]),
       );
 
-      if (thumbnailMaker.thumnailsCount > 0) {
+      if (THUMBNAILS_COUNT > 0) {
         const thumbnailObjs = await prisma.s3Object.findMany({
           where: { task_id: task.id, main: false },
         });
 
-        expect(thumbnailObjs.length).toBe(thumbnailMaker.thumnailsCount);
+        expect(thumbnailObjs.length).toBe(THUMBNAILS_COUNT);
         let i = 0;
 
-        while (i < thumbnailMaker.thumnailsCount) {
+        while (i < THUMBNAILS_COUNT) {
           const obj = thumbnailObjs[i];
 
           expect(uploadedImageMessages).toEqual(
@@ -980,9 +979,7 @@ describe('Storage controller (external endpoint)', () => {
 
       const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
 
-      const thumbnailMaker = app.get(ThumbnailMakerService);
-
-      expect(files.length).toBe(thumbnailMaker.thumnailsCount + 1);
+      expect(files.length).toBe(THUMBNAILS_COUNT + 1);
 
       expect(files).toEqual(
         expect.arrayContaining([
@@ -998,18 +995,25 @@ describe('Storage controller (external endpoint)', () => {
             created_at: expect.any(Date),
             updated_at: expect.any(Date),
           }),
-          expect.objectContaining({
-            id: expect.any(Number),
-            task_id: body.id,
-            main: false,
-            objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.webp$/),
-            bucket: config.get('MINIO_BUCKET'),
-            size: expect.any(String),
-            created_at: expect.any(Date),
-            updated_at: expect.any(Date),
-          }),
         ]),
       );
+
+      if (THUMBNAILS_COUNT) {
+        expect(files).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: expect.any(Number),
+              task_id: body.id,
+              main: false,
+              objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.webp$/),
+              bucket: config.get('MINIO_BUCKET'),
+              size: expect.any(String),
+              created_at: expect.any(Date),
+              updated_at: expect.any(Date),
+            }),
+          ]),
+        );
+      }
 
       expect(task).toEqual(expect.objectContaining({ status: TaskStatusEnum.Done }));
 
@@ -1055,15 +1059,15 @@ describe('Storage controller (external endpoint)', () => {
         ]),
       );
 
-      if (thumbnailMaker.thumnailsCount > 0) {
+      if (THUMBNAILS_COUNT > 0) {
         const thumbnailObjs = await prisma.s3Object.findMany({
           where: { task_id: task.id, main: false },
         });
 
-        expect(thumbnailObjs.length).toBe(thumbnailMaker.thumnailsCount);
+        expect(thumbnailObjs.length).toBe(THUMBNAILS_COUNT);
         let i = 0;
 
-        while (i < thumbnailMaker.thumnailsCount) {
+        while (i < THUMBNAILS_COUNT) {
           const obj = thumbnailObjs[i];
 
           expect(uploadedImageMessages).toEqual(
@@ -1164,9 +1168,7 @@ describe('Storage controller (external endpoint)', () => {
 
       const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
 
-      const thumbnailMaker = app.get(ThumbnailMakerService);
-
-      expect(files.length).toBe(thumbnailMaker.thumnailsCount + 1);
+      expect(files.length).toBe(THUMBNAILS_COUNT + 1);
 
       expect(files).toEqual(
         expect.arrayContaining([
@@ -1258,15 +1260,15 @@ describe('Storage controller (external endpoint)', () => {
         }),
       );
 
-      if (thumbnailMaker.thumnailsCount > 0) {
+      if (THUMBNAILS_COUNT > 0) {
         const thumbnailObjs = await prisma.s3Object.findMany({
           where: { task_id: task.id, main: false },
         });
 
-        expect(thumbnailObjs.length).toBe(thumbnailMaker.thumnailsCount);
+        expect(thumbnailObjs.length).toBe(THUMBNAILS_COUNT);
         let i = 0;
 
-        while (i < thumbnailMaker.thumnailsCount) {
+        while (i < THUMBNAILS_COUNT) {
           const obj = thumbnailObjs[i];
 
           expect(uploadedImageMessages).toEqual(
@@ -1367,9 +1369,7 @@ describe('Storage controller (external endpoint)', () => {
 
       const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
 
-      const thumbnailMaker = app.get(ThumbnailMakerService);
-
-      expect(files.length).toBe(thumbnailMaker.thumnailsCount + 1);
+      expect(files.length).toBe(THUMBNAILS_COUNT + 1);
 
       expect(files).toEqual(
         expect.arrayContaining([
@@ -1461,15 +1461,15 @@ describe('Storage controller (external endpoint)', () => {
         }),
       );
 
-      if (thumbnailMaker.thumnailsCount > 0) {
+      if (THUMBNAILS_COUNT > 0) {
         const thumbnailObjs = await prisma.s3Object.findMany({
           where: { task_id: task.id, main: false },
         });
 
-        expect(thumbnailObjs.length).toBe(thumbnailMaker.thumnailsCount);
+        expect(thumbnailObjs.length).toBe(THUMBNAILS_COUNT);
         let i = 0;
 
-        while (i < thumbnailMaker.thumnailsCount) {
+        while (i < THUMBNAILS_COUNT) {
           const obj = thumbnailObjs[i];
 
           expect(uploadedImageMessages).toEqual(
@@ -1610,11 +1610,10 @@ describe('Storage controller (external endpoint)', () => {
 
       const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
 
-      const thumbnailMaker = app.get(ThumbnailMakerService);
       const previewFilesCount = 1;
       const mainFileCount = 1;
 
-      expect(files.length).toBe(thumbnailMaker.thumnailsCount + previewFilesCount + mainFileCount);
+      expect(files.length).toBe(THUMBNAILS_COUNT + previewFilesCount + mainFileCount);
 
       const mainFile = files.find((f) => f.main === true);
 
@@ -1681,7 +1680,7 @@ describe('Storage controller (external endpoint)', () => {
         }),
       );
 
-      const imagesCount = thumbnailMaker.thumnailsCount + previewFilesCount;
+      const imagesCount = THUMBNAILS_COUNT + previewFilesCount;
 
       expect(uploadedImageMessages.length).toBe(imagesCount);
 
