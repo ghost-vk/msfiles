@@ -17,7 +17,8 @@
     "lint": "eslint \"src/**/*.ts\" --fix",
     "migrate:dev": "yarn prisma migrate dev",
     "migrate:test": "dotenv -e .env.test -- yarn prisma migrate dev",
-    "test:e2e": "cross-env NODE_ENV=development DOTENV_CONFIG_PATH=.env.test jest --config ./jest-e2e.json --setupFiles dotenv/config --runInBand"
+    "test:e2e": "cross-env NODE_ENV=development DOTENV_CONFIG_PATH=.env.test jest --config ./jest-e2e.json --setupFiles dotenv/config --runInBand",
+    "test:unit": "cross-env NODE_ENV=development jest --setupFiles --config ./jest-unit.json"
   },
   "dependencies": {
     "@golevelup/nestjs-rabbitmq": "^3.6.0",

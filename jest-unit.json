@@ -6,7 +6,5 @@
   "transform": { "^.+\\.(t|j)s$": "ts-jest" },
   "coverageDirectory": "unit-coverage",
   "collectCoverageFrom": ["./src/**"],
-  "coveragePathIgnorePatterns": ["./src/migrations"],
-  "globalTeardown": "tests/utils/teardown.ts",
   "verbose": true
 }

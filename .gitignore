@@ -39,7 +39,6 @@ lerna-debug.log*
 !**/.env.example
 
 **/*.db
-**/*.db*
 
 docker/rmq/data
 
