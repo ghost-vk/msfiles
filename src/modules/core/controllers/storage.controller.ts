@@ -169,7 +169,7 @@ export class StorageController {
         data: { status: TaskStatusEnum.Error },
       });
 
-      throw new InternalServerErrorException('Image upload error');
+      throw new InternalServerErrorException('File upload error');
     }
   }
 
