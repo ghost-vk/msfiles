@@ -170,6 +170,8 @@ export class RmqMsgHandlerService {
       return;
     }
 
+    this.logger.log(`Consumer has confirmed the saving of the file of task [${task.id}].`)
+
     this.uploadResSubj$.next({ ...payload, taskId: task.id });
   }
 }

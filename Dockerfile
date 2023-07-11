@@ -1,17 +1,18 @@
-FROM node:18-alpine as builder
+FROM --platform=linux/amd64 node:18-alpine as builder
 WORKDIR /app
-COPY . .
+COPY package.json yarn.lock ./
 RUN yarn install
-RUN yarn build
+COPY . .
+RUN yarn build:prod
 
-FROM node:18-alpine
-RUN apk add --no-cache sqlite
+FROM --platform=linux/amd64 node:18-alpine
+RUN apk add --no-cache sqlite ffmpeg
 ARG NODE_ENV=production
 ENV NODE_ENV $NODE_ENV
 WORKDIR /app
 COPY package.json yarn.lock ./
 RUN yarn install --production
 COPY . .
-COPY --from=builder /app/packages/back/nestjs-core-template/dist/. packages/back/nestjs-core-template/dist
-EXPOSE 8080 
-CMD ["/bin/sh", "-c", "node /app/dist/main"]
+COPY --from=builder /app/dist/. dist
+EXPOSE 8080
+CMD ["yarn", "start:prod"]

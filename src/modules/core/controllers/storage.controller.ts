@@ -20,6 +20,8 @@ import { mkdtemp, writeFile } from 'fs/promises';
 import { nanoid } from 'nanoid';
 import { tmpdir } from 'os';
 import { extname, join } from 'path';
+import { ObservableInput, timeout } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import { ActionKeyGuard } from '../../auth/action-key.guard';
 import { ConcurrencyUploadGuard } from '../../auth/concurrency-upload.guard';
@@ -40,7 +42,6 @@ import { RmqMsgHandlerService, UploadResSubjPayload } from '../services/rmq-msg-
 import { VideoProcessorService } from '../services/video-processor.service';
 import { CreateUploadUrlCacheData, ImageExtensionEnum, VideoExtensionEnum } from '../types';
 import { MsgTaskStart } from '../types/queue-payloads';
-import { timeout } from 'rxjs';
 
 /**
  * This only uploads the file, but does not create any records in the database,
@@ -132,7 +133,22 @@ export class StorageController {
       this.logger.debug(`Synchronously uploading file...`);
 
       return await new Promise((resolve, reject) => {
-        const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(timeout(30000))
+        const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(
+          timeout(20000), // TODO Move it to env.
+          catchError((): ObservableInput<unknown> => {
+            const msg = 'No response from consumer after 20s.';
+
+            this.logger.log(msg);
+
+            s$.unsubscribe();
+
+            const err = new Error('TimeoutException');
+
+            reject(err);
+
+            throw err; // TODO Refactor it. Handle error through rxjs.
+          }),
+        );
         const s$ = o$.subscribe(async (event: UploadResSubjPayload) => {
           if (event.taskId !== task.id) return;
 
@@ -239,19 +255,39 @@ export class StorageController {
       this.logger.debug(`Synchronously uploading image...`);
 
       return await new Promise((resolve, reject) => {
-        const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(timeout(30000))
-        const s$ = o$.subscribe(async (event: UploadResSubjPayload) => {
-          if (event.taskId !== taskRecord.id) return;
+        const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(
+          timeout(20000), // todo move it to env
+          catchError((): ObservableInput<unknown> => {
+            const msg = 'No response from consumer after 20s.';
 
-          try {
-            const task = await this.prisma.task.findUniqueOrThrow({ where: { id: event.taskId } });
+            this.logger.log(msg);
 
-            resolve(new Task(task));
-          } catch (error) {
-            reject(error);
-          } finally {
             s$.unsubscribe();
-          }
+
+            const err = new Error('TimeoutException');
+
+            reject(err);
+
+            throw err; // TODO Refactor it. Handle error through rxjs.
+          }),
+        );
+        const s$ = o$.subscribe({
+          next: async (event: UploadResSubjPayload) => {
+            if (event.taskId !== taskRecord.id) return;
+
+            try {
+              const task = await this.prisma.task.findUniqueOrThrow({ where: { id: event.taskId } });
+
+              resolve(new Task(task));
+            } catch (error) {
+              reject(error);
+            } finally {
+              s$.unsubscribe();
+            }
+          },
+          error: (error) => {
+            reject(error);
+          },
         });
       });
     } catch (e) {
@@ -260,7 +296,11 @@ export class StorageController {
         data: { status: TaskStatusEnum.Error },
       });
 
-      throw new InternalServerErrorException('Image upload error');
+      let msg = 'Image upload error';
+
+      if (e.message === 'TimeoutException') msg = 'Timeout error';
+
+      throw new InternalServerErrorException(msg);
     }
   }
 

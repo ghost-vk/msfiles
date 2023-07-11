@@ -2,12 +2,17 @@ version: "3.9"
 
 services:
   app:
-    build: .
-    container_name: msfiles
+    image: ghostvk/msfiles:1.0.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: msfiles-app
     ports:
       - "8080:8080"
     env_file:
-      - .env
+      - .env.docker
+    volumes:
+      - ./prisma/database/.:/app/prisma/database
 
   minio:
     profiles: ["dev"]
