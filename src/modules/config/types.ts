@@ -21,9 +21,9 @@ export interface AppConfig {
   RABBITMQ_USER: string;
   RABBITMQ_PASSWORD: string;
   RABBITMQ_HOST: string;
-  RABBITMQ_QUEUE_MSFILES: string;
-  RABBITMQ_QUEUE_CORE: string;
   RABBITMQ_PORT: number;
+  RABBITMQ_MSFILES_EXCHANGE: string;
+  RABBITMQ_CONSUMER_EXCHANGE: string; // Send the upload, conversion result to the consumer's exchange
   IS_SWAGGER_ENABLED_BOOL: boolean;
   DATABASE_URL: string;
   THUMBNAIL_SIZES: string;
@@ -53,9 +53,9 @@ export interface EnvVariables {
   RABBITMQ_USER: string;
   RABBITMQ_PASSWORD: string;
   RABBITMQ_HOST: string;
-  RABBITMQ_QUEUE_MSFILES: string;
-  RABBITMQ_QUEUE_CORE: string;
   RABBITMQ_PORT: number;
+  RABBITMQ_MSFILES_EXCHANGE: string;
+  RABBITMQ_CONSUMER_EXCHANGE: string;
   IS_SWAGGER_ENABLED: EnvBoolean;
   DATABASE_URL: string;
   THUMBNAIL_SIZES: string;

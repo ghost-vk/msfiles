@@ -6,6 +6,7 @@ import { Subject } from 'rxjs';
 
 import { sleep } from '../../../utils/sleep';
 import { FileActionsEnum, TaskStatusEnum } from '../../config/actions';
+import { RMQ_CONSUMER_EXCHANGE } from '../../config/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FileProcessorException } from '../exceptions/file-processor.exception';
 import { FileProcessorExceptionHandler } from '../exceptions/file-processor.exception-handler';
@@ -106,7 +107,7 @@ export class FileProcessorService implements OnModuleInit {
         },
       });
 
-      await this.amqpConnection.publish<MsgFileUpload>('core', 'uploaded_file', {
+      await this.amqpConnection.publish<MsgFileUpload>(RMQ_CONSUMER_EXCHANGE, 'uploaded_file', {
         action: task.action as FileActionsEnum,
         status: task.status as TaskStatusEnum,
         objectname: obj.objectname,
@@ -120,7 +121,7 @@ export class FileProcessorService implements OnModuleInit {
         uid: input.uid,
       });
 
-      this.logger.log(`Send message [uploaded_file] to exchange [core].`);
+      this.logger.log(`Send message [uploaded_file] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
 
       task = await this.prisma.task.update({
         where: { id: input.task_id },
@@ -129,14 +130,14 @@ export class FileProcessorService implements OnModuleInit {
 
       await sleep(1000);
 
-      await this.amqpConnection.publish<MsgTaskCompleted>('core', 'task_completed', {
+      await this.amqpConnection.publish<MsgTaskCompleted>(RMQ_CONSUMER_EXCHANGE, 'task_completed', {
         task_id: input.task_id,
         uid: input.uid,
         status: task.status as TaskStatusEnum,
         action: task.action as FileActionsEnum,
       });
 
-      this.logger.log(`Send message [task_completed] to exchange [core].`);
+      this.logger.log(`Send message [task_completed] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
     } catch (e) {
       this.logger.error(`Process file error. ${e}.`);
 

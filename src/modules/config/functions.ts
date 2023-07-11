@@ -37,8 +37,8 @@ export const loadConfig = (): AppConfig => ({
   RABBITMQ_PASSWORD: process.env.RABBITMQ_PASSWORD as string,
   RABBITMQ_HOST: process.env.RABBITMQ_HOST as string,
   RABBITMQ_PORT: +(process.env.RABBITMQ_PORT as string),
-  RABBITMQ_QUEUE_MSFILES: process.env.RABBITMQ_QUEUE_MSFILES as string,
-  RABBITMQ_QUEUE_CORE: process.env.RABBITMQ_QUEUE_CORE as string,
+  RABBITMQ_MSFILES_EXCHANGE: process.env.RABBITMQ_MSFILES_EXCHANGE as string,
+  RABBITMQ_CONSUMER_EXCHANGE: process.env.RABBITMQ_CONSUMER_EXCHANGE as string,
   IS_SWAGGER_ENABLED_BOOL: convertEnvToBoolean(process.env.IS_SWAGGER_ENABLED),
   DATABASE_URL: process.env.DATABASE_URL as string,
   THUMBNAIL_SIZES: process.env.THUMBNAIL_SIZES ?? '300x300::inside',
@@ -80,8 +80,8 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
   RABBITMQ_PASSWORD: Joi.string().required().label('RABBITMQ_PASSWORD'),
   RABBITMQ_HOST: Joi.string().required().label('RABBITMQ_HOST'),
   RABBITMQ_PORT: Joi.number().required().label('RABBITMQ_PORT'),
-  RABBITMQ_QUEUE_MSFILES: Joi.string().required().label('RABBITMQ_QUEUE_MSFILES'),
-  RABBITMQ_QUEUE_CORE: Joi.string().required().label('RABBITMQ_QUEUE_CORE'),
+  RABBITMQ_MSFILES_EXCHANGE: Joi.string().required().label('RABBITMQ_MSFILES_EXCHANGE'),
+  RABBITMQ_CONSUMER_EXCHANGE: Joi.string().required().label('RABBITMQ_CONSUMER_EXCHANGE'),
   IS_SWAGGER_ENABLED: Joi.string()
     .required()
     .valid(...availableEnvBoolean)

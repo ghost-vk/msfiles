@@ -3,14 +3,18 @@ import { CACHE_MANAGER, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cache } from 'cache-manager';
 import { nanoid } from 'nanoid';
+import { Subject } from 'rxjs';
 
 import { validationPipe } from '../../../validation.pipe';
 import { FileActionsEnum } from '../../config/actions';
+import { RMQ_MSFILES_EXCHANGE } from '../../config/constants';
 import { AppConfig } from '../../config/types';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUploadUrlPayload } from '../dtos/create-upload-url-payload.dto';
 import { DeleteObjectsPayload } from '../dtos/delete-objects-payload.dto';
 import { GetFilesSizeByTaskDto } from '../dtos/get-files-size-by-task.dto';
 import { RemoveTemporaryTagPayload } from '../dtos/remove-temporary-tag-payload.dto';
+import { UploadResPayload } from '../dtos/upload-res.dto';
 import { CreateUploadUrlCacheData } from '../types';
 import { MinioService } from './minio.service';
 import { TaskService } from './task.service';
@@ -20,9 +24,12 @@ export type GetFilesSizeByTaskResult = {
   total: string;
 };
 
+export type UploadResSubjPayload = UploadResPayload & { taskId: number };
+
 @Injectable()
 export class RmqMsgHandlerService {
   private readonly logger = new Logger(RmqMsgHandlerService.name);
+  public readonly uploadResSubj$ = new Subject<UploadResSubjPayload>();
 
   constructor(
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
@@ -30,10 +37,11 @@ export class RmqMsgHandlerService {
     private readonly minioService: MinioService,
     private readonly taskService: TaskService,
     private readonly tempTagRemover: TempTagRemoverService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @RabbitRPC({
-    exchange: 'file_conversions',
+    exchange: RMQ_MSFILES_EXCHANGE,
     queue: 'create_upload_url_queue',
     routingKey: 'create_upload_url',
   })
@@ -81,7 +89,7 @@ export class RmqMsgHandlerService {
   }
 
   @RabbitSubscribe({
-    exchange: 'file_conversions',
+    exchange: RMQ_MSFILES_EXCHANGE,
     queue: 'delete_objects_queue',
     routingKey: 'delete_objects',
   })
@@ -100,7 +108,7 @@ export class RmqMsgHandlerService {
   }
 
   @RabbitRPC({
-    exchange: 'file_conversions',
+    exchange: RMQ_MSFILES_EXCHANGE,
     queue: 'remove_temporary_tag_queue',
     routingKey: 'remove_temporary_tag',
   })
@@ -132,7 +140,7 @@ export class RmqMsgHandlerService {
   }
 
   @RabbitRPC({
-    exchange: 'file_conversions',
+    exchange: RMQ_MSFILES_EXCHANGE,
     queue: 'get_files_size_queue',
     routingKey: 'get_file_size',
   })
@@ -143,5 +151,25 @@ export class RmqMsgHandlerService {
     const total = objs.reduce((acc, obj) => acc + (obj.size ? BigInt(obj.size) : BigInt(0)), BigInt(0));
 
     return { total: total.toString() };
+  }
+
+  @RabbitRPC({
+    exchange: RMQ_MSFILES_EXCHANGE,
+    queue: 'upload_res_queue',
+    routingKey: 'consumer_saved_result',
+  })
+  async handleUploadResponse(@RabbitPayload() payload: UploadResPayload): Promise<void> {
+    this.logger.log(`Action: [consumer_saved_result].`);
+    this.logger.debug(`${JSON.stringify(payload, null, 2)}`);
+
+    const task = await this.prisma.task.findFirst({ where: { uid: payload.uid }, select: { id: true } });
+
+    if (!task) {
+      this.logger.warn('Got message [consumer_saved_result] but msfiles task not found.');
+
+      return;
+    }
+
+    this.uploadResSubj$.next({ ...payload, taskId: task.id });
   }
 }

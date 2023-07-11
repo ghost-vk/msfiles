@@ -25,8 +25,10 @@ import { ActionKeyGuard } from '../../auth/action-key.guard';
 import { ConcurrencyUploadGuard } from '../../auth/concurrency-upload.guard';
 import { RequestedAction } from '../../auth/requested-action.decorator';
 import { FileActionsEnum, TaskStatusEnum } from '../../config/actions';
+import { RMQ_CONSUMER_EXCHANGE } from '../../config/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FileUploadDto } from '../dtos/file-upload.dto';
+import { UploadFileOptionsDto } from '../dtos/upload-file-options.dto';
 import { UploadImageOptionsDto } from '../dtos/upload-image-options.dto';
 import { UploadVideoOptionsDto } from '../dtos/upload-video-options.dto';
 import { Task } from '../models/task.entity';
@@ -34,6 +36,7 @@ import { UploadObjectDataPipe } from '../pipes/upload-object.pipe';
 import { FileProcessorService } from '../services/file-processor.service';
 import { ImageProcessorService } from '../services/image-processor.service';
 import { MinioService } from '../services/minio.service';
+import { RmqMsgHandlerService, UploadResSubjPayload } from '../services/rmq-msg-handler.service';
 import { VideoProcessorService } from '../services/video-processor.service';
 import { CreateUploadUrlCacheData, ImageExtensionEnum, VideoExtensionEnum } from '../types';
 import { MsgTaskStart } from '../types/queue-payloads';
@@ -59,6 +62,7 @@ export class StorageController {
     private readonly videoProcessor: VideoProcessorService,
     private readonly fileProcessor: FileProcessorService,
     private readonly amqpConnection: AmqpConnection,
+    private readonly rmqMsgHandler: RmqMsgHandlerService,
   ) {}
 
   @Post('uploadFile/:key')
@@ -74,6 +78,7 @@ export class StorageController {
   })
   async uploadFile(
     @UploadedFile() file?: Express.Multer.File,
+    @Query() options: UploadFileOptionsDto = {},
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task> {
     if (!uploadConfig) throw new ForbiddenException();
@@ -104,7 +109,7 @@ export class StorageController {
 
       this.logger.log(`Successfully put file [${file.originalname}] to temporary directory for processing.`);
 
-      await this.amqpConnection.publish<MsgTaskStart>('core', 'task_start', {
+      await this.amqpConnection.publish<MsgTaskStart>(RMQ_CONSUMER_EXCHANGE, 'task_start', {
         task_id: task.id,
         uid: uploadConfig.uid,
         action: task.action as FileActionsEnum,
@@ -121,7 +126,25 @@ export class StorageController {
         uid: uploadConfig.uid,
       });
 
-      return new Task(task);
+      if (!options.synchronously) return new Task(task);
+
+      this.logger.debug(`Synchronously uploading file...`);
+
+      return await new Promise((resolve, reject) => {
+        const s$ = this.rmqMsgHandler.uploadResSubj$.subscribe(async (event: UploadResSubjPayload) => {
+          if (event.taskId !== task.id) return;
+
+          try {
+            const task = await this.prisma.task.findUniqueOrThrow({ where: { id: event.taskId } });
+
+            resolve(new Task(task));
+          } catch (error) {
+            reject(error);
+          } finally {
+            s$.unsubscribe();
+          }
+        });
+      });
     } catch (e) {
       await this.prisma.task.update({
         where: { id: task.id },
@@ -187,7 +210,7 @@ export class StorageController {
 
       this.logger.log(`Successfully put file [${file.originalname}] to temporary directory for conversion.`);
 
-      await this.amqpConnection.publish<MsgTaskStart>('core', 'task_start', {
+      await this.amqpConnection.publish<MsgTaskStart>(RMQ_CONSUMER_EXCHANGE, 'task_start', {
         task_id: taskRecord.id,
         uid: uploadConfig.uid,
         action: FileActionsEnum.UploadImage,
@@ -270,7 +293,7 @@ export class StorageController {
 
       await writeFile(join(dir, inputFileName), file.buffer);
 
-      await this.amqpConnection.publish<MsgTaskStart>('core', 'task_start', {
+      await this.amqpConnection.publish<MsgTaskStart>(RMQ_CONSUMER_EXCHANGE, 'task_start', {
         task_id: taskRecord.id,
         uid: uploadConfig.uid,
         action: taskRecord.action as FileActionsEnum,

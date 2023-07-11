@@ -6,6 +6,7 @@ import { Subject } from 'rxjs';
 
 import { sleep } from '../../../utils/sleep';
 import { FileActionsEnum, TaskStatusEnum } from '../../config/actions';
+import { RMQ_CONSUMER_EXCHANGE } from '../../config/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ImageProcessorException } from '../exceptions/image-processor.exception';
 import { ImageProcessorExceptionHandler } from '../exceptions/image-processor.exception-handler';
@@ -86,7 +87,7 @@ export class ImageProcessorService implements OnModuleInit {
 
       let mainFileTmpPath: string;
 
-      if (input.convert === false) {
+      if (!input.convert) {
         mainFileTmpPath = originalFileTmpPath;
       } else {
         mainFileTmpPath = await this.imageConverter.convertImage(originalFileTmpPath, {
@@ -108,7 +109,7 @@ export class ImageProcessorService implements OnModuleInit {
         main: true,
       });
 
-      await this.amqpConnection.publish<MsgFileUpload>('core', 'uploaded_image', {
+      await this.amqpConnection.publish<MsgFileUpload>(RMQ_CONSUMER_EXCHANGE, 'uploaded_image', {
         action: task.action as FileActionsEnum,
         status: task.status as TaskStatusEnum,
         objectname: mainImage.s3obj.objectname,
@@ -123,7 +124,7 @@ export class ImageProcessorService implements OnModuleInit {
         ...imageSize,
       });
 
-      this.logger.log(`Send message [uploaded_image] to exchange [core].`);
+      this.logger.log(`Send message [uploaded_image] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
 
       const thumbnails = await this.thumbnailMaker.makeThumbnails(originalFileTmpPath);
 
@@ -140,7 +141,7 @@ export class ImageProcessorService implements OnModuleInit {
           main: false,
         });
 
-        await this.amqpConnection.publish<MsgFileUpload>('core', 'uploaded_image', {
+        await this.amqpConnection.publish<MsgFileUpload>(RMQ_CONSUMER_EXCHANGE, 'uploaded_image', {
           action: task.action as FileActionsEnum,
           status: task.status as TaskStatusEnum,
           objectname: tImage.s3obj.objectname,
@@ -155,7 +156,7 @@ export class ImageProcessorService implements OnModuleInit {
           ...tSize,
         });
 
-        this.logger.log(`Send message [uploaded_image] to exchange [core].`);
+        this.logger.log(`Send message [uploaded_image] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
       }
 
       task = await this.prisma.task.update({
@@ -165,14 +166,14 @@ export class ImageProcessorService implements OnModuleInit {
 
       await sleep(1000);
 
-      await this.amqpConnection.publish<MsgTaskCompleted>('core', 'task_completed', {
+      await this.amqpConnection.publish<MsgTaskCompleted>(RMQ_CONSUMER_EXCHANGE, 'task_completed', {
         task_id: input.task_id,
         uid: input.uid,
         status: task.status as TaskStatusEnum,
         action: task.action as FileActionsEnum,
       });
 
-      this.logger.log(`Send message [task_completed] to exchange [core].`);
+      this.logger.log(`Send message [task_completed] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
     } catch (e) {
       this.logger.error(`Process image file error. ${e}.`);
 

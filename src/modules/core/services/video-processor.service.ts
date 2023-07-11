@@ -8,6 +8,7 @@ import { Subject } from 'rxjs';
 
 import { sleep } from '../../../utils/sleep';
 import { FileActionsEnum, TaskStatusEnum } from '../../config/actions';
+import { RMQ_CONSUMER_EXCHANGE } from '../../config/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VideoProcessorException } from '../exceptions/video-processor.exception';
 import { VideoProcessorExceptionHandler } from '../exceptions/video-processor.exception-handler';
@@ -115,7 +116,7 @@ export class VideoProcessorService implements OnModuleInit {
           },
         });
 
-        await this.amqpConnection.publish<MsgFileUpload>('core', 'uploaded_video', {
+        await this.amqpConnection.publish<MsgFileUpload>(RMQ_CONSUMER_EXCHANGE, 'uploaded_video', {
           action: task.action as FileActionsEnum,
           status: task.status as TaskStatusEnum,
           bucket: mainFileObj.bucket,
@@ -129,7 +130,7 @@ export class VideoProcessorService implements OnModuleInit {
           ...orgnVideoSize,
         });
 
-        this.logger.log(`Send message [uploaded_video] to exchange [core].`);
+        this.logger.log(`Send message [uploaded_video] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
       } else if (input.convert === true || isUndefined(input.convert)) {
         for (const [i, videoSize] of sortedSizes.entries()) {
           const videoFilePath = await this.videoConverter.convertVideo(orgnFileTmpPath, {
@@ -190,7 +191,7 @@ export class VideoProcessorService implements OnModuleInit {
             },
           });
 
-          await this.amqpConnection.publish<MsgFileUpload>('core', 'uploaded_video', {
+          await this.amqpConnection.publish<MsgFileUpload>(RMQ_CONSUMER_EXCHANGE, 'uploaded_video', {
             action: task.action as FileActionsEnum,
             status: task.status as TaskStatusEnum,
             bucket: videoObj.bucket,
@@ -204,7 +205,7 @@ export class VideoProcessorService implements OnModuleInit {
             ...videoSize,
           });
 
-          this.logger.log(`Send message [uploaded_video] to exchange [core].`);
+          this.logger.log(`Send message [uploaded_video] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
         }
       }
 
@@ -228,7 +229,7 @@ export class VideoProcessorService implements OnModuleInit {
         main: false,
       });
 
-      await this.amqpConnection.publish<MsgFileUpload>('core', 'uploaded_image', {
+      await this.amqpConnection.publish<MsgFileUpload>(RMQ_CONSUMER_EXCHANGE, 'uploaded_image', {
         action: task.action as FileActionsEnum,
         status: task.status as TaskStatusEnum,
         objectname: pImage.s3obj.objectname,
@@ -243,7 +244,7 @@ export class VideoProcessorService implements OnModuleInit {
         ...pImageSize,
       });
 
-      this.logger.log(`Send message [uploaded_image] to exchange [core].`);
+      this.logger.log(`Send message [uploaded_image] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
 
       const thumbnails = await this.thumbnailMaker.makeThumbnails(thumbnailRawJpgFile);
 
@@ -260,7 +261,7 @@ export class VideoProcessorService implements OnModuleInit {
           main: false,
         });
 
-        await this.amqpConnection.publish<MsgFileUpload>('core', 'uploaded_image', {
+        await this.amqpConnection.publish<MsgFileUpload>(RMQ_CONSUMER_EXCHANGE, 'uploaded_image', {
           action: task.action as FileActionsEnum,
           status: task.status as TaskStatusEnum,
           objectname: pImage.s3obj.objectname,
@@ -275,7 +276,7 @@ export class VideoProcessorService implements OnModuleInit {
           ...tImageSize,
         });
 
-        this.logger.log(`Send message [uploaded_image] to exchange [core].`);
+        this.logger.log(`Send message [uploaded_image] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
       }
 
       task = await this.prisma.task.update({
@@ -285,14 +286,14 @@ export class VideoProcessorService implements OnModuleInit {
 
       await sleep(1000);
 
-      await this.amqpConnection.publish<MsgTaskCompleted>('core', 'task_completed', {
+      await this.amqpConnection.publish<MsgTaskCompleted>(RMQ_CONSUMER_EXCHANGE, 'task_completed', {
         task_id: input.task_id,
         uid: input.uid,
         action: task.action as FileActionsEnum,
         status: task.status as TaskStatusEnum,
       });
 
-      this.logger.log(`Send message [task_completed] to exchange [core].`);
+      this.logger.log(`Send message [task_completed] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
 
       this.tempFilesCollector.tmpFilesCollectorSubj$.next({ dir: input.dir });
     } catch (err) {

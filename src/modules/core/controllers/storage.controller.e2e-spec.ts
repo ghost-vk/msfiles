@@ -15,6 +15,7 @@ import { createUploadKey } from '../../../../tests/utils/create-upload-key';
 import { setup, TestConfig } from '../../../../tests/utils/setup-app';
 import { sleep } from '../../../utils/sleep';
 import { FileActionsEnum, TaskStatusEnum } from '../../config/actions';
+import { RMQ_CONSUMER_EXCHANGE, RMQ_MSFILES_EXCHANGE } from '../../config/constants';
 import { AppConfig } from '../../config/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MinioService } from '../services/minio.service';
@@ -63,44 +64,44 @@ describe('Storage controller (external endpoint)', () => {
     channel = await connection.createChannel();
 
     // Будет ругаться если некуда отправлять сообщения
-    await channel.assertExchange('core', 'topic', { durable: false });
+    await channel.assertExchange(RMQ_CONSUMER_EXCHANGE, 'topic', { durable: false });
     // Готовим очереди для имитации потребителя
     await channel.assertQueue('task_start_queue');
-    await channel.bindQueue('task_start_queue', 'core', 'task_start');
+    await channel.bindQueue('task_start_queue', RMQ_CONSUMER_EXCHANGE, 'task_start');
     await channel.assertQueue('uploaded_file_queue');
-    await channel.bindQueue('uploaded_file_queue', 'core', 'uploaded_file');
+    await channel.bindQueue('uploaded_file_queue', RMQ_CONSUMER_EXCHANGE, 'uploaded_file');
     await channel.assertQueue('task_completed_queue');
-    await channel.bindQueue('task_completed_queue', 'core', 'task_completed');
+    await channel.bindQueue('task_completed_queue', RMQ_CONSUMER_EXCHANGE, 'task_completed');
     await channel.assertQueue('uploaded_image_queue');
-    await channel.bindQueue('uploaded_image_queue', 'core', 'uploaded_image');
+    await channel.bindQueue('uploaded_image_queue', RMQ_CONSUMER_EXCHANGE, 'uploaded_image');
     await channel.assertQueue('uploaded_video_queue');
-    await channel.bindQueue('uploaded_video_queue', 'core', 'uploaded_video');
+    await channel.bindQueue('uploaded_video_queue', RMQ_CONSUMER_EXCHANGE, 'uploaded_video');
     await consumeMessagesFromExchange(channel, {
-      exchange: 'core',
+      exchange: RMQ_CONSUMER_EXCHANGE,
       queue: 'task_start_queue',
       messages: taskStartMessages,
     });
 
     await consumeMessagesFromExchange(channel, {
-      exchange: 'core',
+      exchange: RMQ_CONSUMER_EXCHANGE,
       queue: 'uploaded_file_queue',
       messages: uploadedFilesMessages,
     });
 
     await consumeMessagesFromExchange(channel, {
-      exchange: 'core',
+      exchange: RMQ_CONSUMER_EXCHANGE,
       queue: 'task_completed_queue',
       messages: taskCompletedMessages,
     });
 
     await consumeMessagesFromExchange(channel, {
-      exchange: 'core',
+      exchange: RMQ_CONSUMER_EXCHANGE,
       queue: 'uploaded_image_queue',
       messages: uploadedImageMessages,
     });
 
     await consumeMessagesFromExchange(channel, {
-      exchange: 'core',
+      exchange: RMQ_CONSUMER_EXCHANGE,
       queue: 'uploaded_video_queue',
       messages: uploadedVideoMessages,
     });
@@ -121,7 +122,7 @@ describe('Storage controller (external endpoint)', () => {
   });
 
   describe('POST: /storage/uploadFile/:key', () => {
-    afterEach(() => {
+    afterEach(async () => {
       while (taskStartMessages.length) {
         taskStartMessages.pop();
       }
@@ -131,6 +132,7 @@ describe('Storage controller (external endpoint)', () => {
       while (taskCompletedMessages.length) {
         taskCompletedMessages.pop();
       }
+      await sleep(1000);
     });
 
     it('should fail request with wrong file key', async () => {
@@ -296,6 +298,307 @@ describe('Storage controller (external endpoint)', () => {
       );
 
       await sleep(1000);
+      expect(taskCompletedMessages.length).toBe(1);
+
+      expect(taskCompletedMessages[0]).toEqual(
+        expect.objectContaining({
+          action: FileActionsEnum.UploadFile,
+          status: TaskStatusEnum.Done,
+          task_id: completedTask.id,
+          uid: uid,
+        }),
+      );
+    });
+
+    it('should successfully upload pdf file synchronously', async () => {
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadFile, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      const redisRecJson = await redis.get<string>(key);
+
+      if (!redisRecJson) throw new Error('Expect record saved in redis.');
+      expect(typeof redisRecJson === 'string').toBe(true);
+
+      const redisRec = JSON.parse(redisRecJson);
+
+      expect(redisRec).toEqual(
+        expect.objectContaining({
+          action: FileActionsEnum.UploadFile,
+          uid,
+          bucket: config.get('MINIO_BUCKET'),
+        }),
+      );
+
+      expect(redisRec.used).toBeFalsy();
+
+      setTimeout(() => {
+        channel.publish(RMQ_MSFILES_EXCHANGE, 'consumer_saved_result', Buffer.from(JSON.stringify({ uid })));
+      }, 2000);
+
+      const { body } = await request(server)
+        .post(`/storage/uploadFile/${key}?synchronously=true`)
+        // .post(`/storage/uploadFile/${key}`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', 'test.pdf'))
+        .expect(201);
+
+      // После выполнения запроса ключ на загрузку должен быть удален или отмечен использованным
+      const redisRecAfterRequestJson = await redis.get<string>(key);
+
+      if (redisRecAfterRequestJson) {
+        expect(JSON.parse(redisRecAfterRequestJson).used).toBe(true);
+      }
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          id: expect.any(Number),
+          uid: uid,
+          status: TaskStatusEnum.Done,
+          action: FileActionsEnum.UploadFile,
+          originalname: 'test.pdf',
+          bucket: config.get('MINIO_BUCKET'),
+          parameters: null,
+          created_at: expect.any(String),
+          updated_at: expect.any(String),
+        }),
+      );
+
+      let task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      expect(task).toEqual(
+        expect.objectContaining({
+          id: body.id,
+          uid: uid,
+          status: TaskStatusEnum.Done,
+          action: FileActionsEnum.UploadFile,
+          originalname: 'test.pdf',
+          bucket: config.get('MINIO_BUCKET'),
+          parameters: null,
+          created_at: expect.any(Date),
+          updated_at: expect.any(Date),
+        }),
+      );
+
+      task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      const files = await prisma.s3Object.findMany({ where: { task_id: body.id } });
+
+      expect(files.length).toBe(1);
+
+      expect(files[0]).toEqual(
+        expect.objectContaining({
+          id: expect.any(Number),
+          task_id: body.id,
+          main: true,
+          objectname: expect.stringMatching(/^test_mf.{6}\.pdf$/),
+          bucket: config.get('MINIO_BUCKET'),
+          size: expect.any(String),
+          created_at: expect.any(Date),
+          updated_at: expect.any(Date),
+        }),
+      );
+
+      const completedTask = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      expect(completedTask).toEqual(expect.objectContaining({ status: TaskStatusEnum.Done }));
+
+      // Проверим что файл загружен в minio
+      const obj = await minio.getFileStat(files[0].objectname, { bucket: config.get('MINIO_BUCKET') });
+
+      expect(obj).toBeTruthy();
+
+      expect(taskStartMessages.length).toBe(1);
+
+      expect(taskStartMessages[0]).toEqual(
+        expect.objectContaining({
+          task_id: completedTask.id,
+          uid: uid,
+          action: FileActionsEnum.UploadFile,
+          status: TaskStatusEnum.InProgress,
+          created_at: expect.any(String),
+        }),
+      );
+
+      expect(uploadedFilesMessages.length).toBe(1);
+
+      expect(uploadedFilesMessages[0]).toEqual(
+        expect.objectContaining({
+          action: FileActionsEnum.UploadFile,
+          status: TaskStatusEnum.InProgress,
+          objectname: files[0].objectname,
+          originalname: 'test.pdf',
+          size: obj.size,
+          type: FileTypeEnum.MainFile,
+          bucket: config.get('MINIO_BUCKET'),
+          task_id: completedTask.id,
+          created_at: expect.any(String),
+          uid: uid,
+        }),
+      );
+
+      expect(taskCompletedMessages.length).toBe(1);
+
+      expect(taskCompletedMessages[0]).toEqual(
+        expect.objectContaining({
+          action: FileActionsEnum.UploadFile,
+          status: TaskStatusEnum.Done,
+          task_id: completedTask.id,
+          uid: uid,
+        }),
+      );
+    });
+
+    it('should upload file asynchronously by default', async () => {
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadFile, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      const { body } = await request(server)
+        .post(`/storage/uploadFile/${key}`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', 'test.pdf'))
+        .expect(201);
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          id: expect.any(Number),
+          uid: uid,
+          status: TaskStatusEnum.InProgress,
+        }),
+      );
+
+      await sleep(5000); // Wait for uploading, publishing messages
+    });
+
+    it('should response only if task uid match', async () => {
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadFile, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      // publish wrong uid
+      setTimeout(() => {
+        channel.publish(
+          RMQ_MSFILES_EXCHANGE,
+          'consumer_saved_result',
+          Buffer.from(JSON.stringify({ uid: randomUUID() })),
+        );
+      }, 2000);
+
+      // publish task uid
+      setTimeout(() => {
+        channel.publish(RMQ_MSFILES_EXCHANGE, 'consumer_saved_result', Buffer.from(JSON.stringify({ uid })));
+      }, 3000);
+
+      const { body } = await request(server)
+        .post(`/storage/uploadFile/${key}?synchronously=true`)
+        // .post(`/storage/uploadFile/${key}`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', 'test.pdf'))
+        .expect(201);
+
+      // После выполнения запроса ключ на загрузку должен быть удален или отмечен использованным
+      const redisRecAfterRequestJson = await redis.get<string>(key);
+
+      if (redisRecAfterRequestJson) {
+        expect(JSON.parse(redisRecAfterRequestJson).used).toBe(true);
+      }
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          id: expect.any(Number),
+          uid: uid,
+          status: TaskStatusEnum.Done,
+          action: FileActionsEnum.UploadFile,
+          originalname: 'test.pdf',
+          bucket: config.get('MINIO_BUCKET'),
+          parameters: null,
+          created_at: expect.any(String),
+          updated_at: expect.any(String),
+        }),
+      );
+
+      let task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      expect(task).toEqual(
+        expect.objectContaining({
+          id: body.id,
+          uid: uid,
+          status: TaskStatusEnum.Done,
+          action: FileActionsEnum.UploadFile,
+          originalname: 'test.pdf',
+          bucket: config.get('MINIO_BUCKET'),
+          parameters: null,
+          created_at: expect.any(Date),
+          updated_at: expect.any(Date),
+        }),
+      );
+
+      task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      const files = await prisma.s3Object.findMany({ where: { task_id: body.id } });
+
+      expect(files.length).toBe(1);
+
+      expect(files[0]).toEqual(
+        expect.objectContaining({
+          id: expect.any(Number),
+          task_id: body.id,
+          main: true,
+          objectname: expect.stringMatching(/^test_mf.{6}\.pdf$/),
+          bucket: config.get('MINIO_BUCKET'),
+          size: expect.any(String),
+          created_at: expect.any(Date),
+          updated_at: expect.any(Date),
+        }),
+      );
+
+      const completedTask = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      expect(completedTask).toEqual(expect.objectContaining({ status: TaskStatusEnum.Done }));
+
+      // Проверим что файл загружен в minio
+      const obj = await minio.getFileStat(files[0].objectname, { bucket: config.get('MINIO_BUCKET') });
+
+      expect(obj).toBeTruthy();
+
+      expect(taskStartMessages.length).toBe(1);
+
+      expect(taskStartMessages[0]).toEqual(
+        expect.objectContaining({
+          task_id: completedTask.id,
+          uid: uid,
+          action: FileActionsEnum.UploadFile,
+          status: TaskStatusEnum.InProgress,
+          created_at: expect.any(String),
+        }),
+      );
+
+      if (uploadedFilesMessages.length > 1) {
+        console.warn(`Found more 1 uploaded files messages.\n${JSON.stringify(uploadedFilesMessages, null, 2)}`);
+      }
+
+      expect(uploadedFilesMessages[0]).toEqual(
+        expect.objectContaining({
+          action: FileActionsEnum.UploadFile,
+          status: TaskStatusEnum.InProgress,
+          objectname: files[0].objectname,
+          originalname: 'test.pdf',
+          size: obj.size,
+          type: FileTypeEnum.MainFile,
+          bucket: config.get('MINIO_BUCKET'),
+          task_id: completedTask.id,
+          created_at: expect.any(String),
+          uid: uid,
+        }),
+      );
+
       expect(taskCompletedMessages.length).toBe(1);
 
       expect(taskCompletedMessages[0]).toEqual(
@@ -786,10 +1089,13 @@ describe('Storage controller (external endpoint)', () => {
       const deadline = new Date();
 
       deadline.setSeconds(deadline.getSeconds() + 10);
-
+      await sleep(500);
       while (task.status !== TaskStatusEnum.Done) {
         await sleep(500);
-        task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+        const _task = await prisma.task.findUnique({ where: { id: body.id } });
+
+        if (!_task) continue;
+        task = _task;
         if (new Date() > deadline) {
           throw new Error('Time is up.');
         }
@@ -834,6 +1140,8 @@ describe('Storage controller (external endpoint)', () => {
 
       expect(obj1).toBeTruthy();
       expect(obj2).toBeTruthy();
+
+      await sleep(1500);
 
       expect(taskStartMessages.length).toBe(1);
 

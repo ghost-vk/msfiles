@@ -2,6 +2,7 @@ import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { RMQ_MSFILES_EXCHANGE } from '../config/constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { InternalRestController } from './controllers/internal-rest.controller';
 import { StorageController } from './controllers/storage.controller';
@@ -37,7 +38,7 @@ import { VideoProcessorService } from './services/video-processor.service';
         return {
           exchanges: [
             {
-              name: 'file_conversions',
+              name: RMQ_MSFILES_EXCHANGE,
               type: 'topic',
               createExchangeIfNotExists: true,
               options: {
