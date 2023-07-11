@@ -40,6 +40,7 @@ import { RmqMsgHandlerService, UploadResSubjPayload } from '../services/rmq-msg-
 import { VideoProcessorService } from '../services/video-processor.service';
 import { CreateUploadUrlCacheData, ImageExtensionEnum, VideoExtensionEnum } from '../types';
 import { MsgTaskStart } from '../types/queue-payloads';
+import { timeout } from 'rxjs';
 
 /**
  * This only uploads the file, but does not create any records in the database,
@@ -131,7 +132,8 @@ export class StorageController {
       this.logger.debug(`Synchronously uploading file...`);
 
       return await new Promise((resolve, reject) => {
-        const s$ = this.rmqMsgHandler.uploadResSubj$.subscribe(async (event: UploadResSubjPayload) => {
+        const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(timeout(30000))
+        const s$ = o$.subscribe(async (event: UploadResSubjPayload) => {
           if (event.taskId !== task.id) return;
 
           try {
@@ -232,7 +234,26 @@ export class StorageController {
         convert: options.convert ?? true,
       });
 
-      return new Task(taskRecord);
+      if (!options.synchronously) return new Task(taskRecord);
+
+      this.logger.debug(`Synchronously uploading image...`);
+
+      return await new Promise((resolve, reject) => {
+        const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(timeout(30000))
+        const s$ = o$.subscribe(async (event: UploadResSubjPayload) => {
+          if (event.taskId !== taskRecord.id) return;
+
+          try {
+            const task = await this.prisma.task.findUniqueOrThrow({ where: { id: event.taskId } });
+
+            resolve(new Task(task));
+          } catch (error) {
+            reject(error);
+          } finally {
+            s$.unsubscribe();
+          }
+        });
+      });
     } catch (e) {
       await this.prisma.task.update({
         where: { id: taskRecord.id },
