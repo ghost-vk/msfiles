@@ -40,4 +40,27 @@ export class TaskService implements OnModuleInit {
 
     return this.prisma.s3Object.findMany({ where: { task_id: taskId }, distinct: ['objectname'] });
   }
+
+  public async getTaskFilesTotalSize(taskId: string | number): Promise<bigint> {
+    const uid = typeof taskId === 'string' ? taskId : undefined;
+    const id = typeof taskId === 'number' ? taskId : undefined;
+
+    const task = await this.prisma.task.findFirstOrThrow({ where: { uid, id }, select: { id: true } });
+    const objs = await this.prisma.s3Object.findMany({
+      where: { task_id: task.id },
+      distinct: ['objectname'],
+      select: { id: true },
+    });
+
+    if (!objs.length) return BigInt(0);
+
+    const res = await this.prisma.s3Object.aggregate({
+      _sum: { size: true },
+      where: { task_id: task.id },
+    });
+
+    this.logger.debug(`Calculate total size of task [${task.id}] files. Result: [${res._sum.size}].`);
+
+    return res._sum.size ?? BigInt(0);
+  }
 }

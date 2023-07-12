@@ -31,7 +31,7 @@ model S3Object {
   main       Boolean  @default(false)
   objectname String
   bucket     String
-  size       String?
+  size       BigInt?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt()
 

@@ -84,7 +84,7 @@ export class MinioService {
 
     return {
       objectname: options.filename,
-      size: stat.size,
+      size: BigInt(stat.size),
       metadata: stat.metaData,
       bucket,
     };
@@ -102,7 +102,6 @@ export class MinioService {
    * Method creates a signed path where you can get the file from the Minio
    * URL expired in 1 hour
    *
-   * @param { string } objectName
    * @returns { Promise<string> } Download URL
    */
   async getPresignedDownloadUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
@@ -124,8 +123,6 @@ export class MinioService {
    * If provide taskId, all related objects will be deleted.
    * If provide object ids or objectnames, first find objects in database then delete in s3.
    * If provide objectnames, will be delete directly.
-   *
-   * @param objectName
    */
   async deleteObjects(params: DeleteObjectsParams): Promise<boolean> {
     const bucket = params.bucket ?? this.bucket;
@@ -200,7 +197,6 @@ export class MinioService {
    * URL expired in 1 hour
    * Set policy max file size to upload 10MB and expires in 1 hour
    *
-   * @param { string } objectName Filename with extension
    * @returns { Promise<string> } Upload URL
    */
   public async getPresignedUploadUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
@@ -219,8 +215,6 @@ export class MinioService {
 
   /**
    * Method checks if file exists and returns file info if yes
-   *
-   * @param objectName
    */
   async getFileStat(objectName: string, options: { bucket?: string } = {}): Promise<BucketItemStat> {
     const bucket = options.bucket ?? this.bucket;

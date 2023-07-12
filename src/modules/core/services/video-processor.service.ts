@@ -19,6 +19,7 @@ import { ImageConverterService } from './image-converter.service';
 import { ImageSaverService } from './image-saver.service';
 import { MinioService } from './minio.service';
 import { SizeDetectorService } from './size-detector.service';
+import { TaskService } from './task.service';
 import { TempFilesCollectorService } from './temp-files-collector.service';
 import { TempTagRemoverService } from './temp-tag-remover.service';
 import { ThumbnailMakerService } from './thumbnail-maker.service';
@@ -58,6 +59,7 @@ export class VideoProcessorService implements OnModuleInit {
     private readonly imageConverter: ImageConverterService,
     private readonly imageSaver: ImageSaverService,
     private readonly amqpConnection: AmqpConnection,
+    private readonly taskService: TaskService,
   ) {}
 
   onModuleInit(): void {
@@ -72,6 +74,8 @@ export class VideoProcessorService implements OnModuleInit {
         this.logger.log(`Successfully upload video file [${event.originalname}].`);
       }
     });
+
+    this.logger.log('Subscribe for processing videos...');
   }
 
   async process(input: VideoConversionPayload): Promise<void> {
@@ -112,7 +116,7 @@ export class VideoProcessorService implements OnModuleInit {
             main: true,
             bucket: mainFileObj.bucket,
             task_id: input.task_id,
-            size: String(mainFileObj.size),
+            size: mainFileObj.size,
           },
         });
 
@@ -121,7 +125,7 @@ export class VideoProcessorService implements OnModuleInit {
           status: task.status as TaskStatusEnum,
           bucket: mainFileObj.bucket,
           objectname: mainFileObj.objectname,
-          size: mainFileObj.size,
+          size: mainFileObj.size.toString(),
           created_at: task.created_at,
           originalname: input.originalname,
           task_id: task.id,
@@ -163,7 +167,7 @@ export class VideoProcessorService implements OnModuleInit {
                   objectname: partObj.objectname,
                   bucket: partObj.bucket,
                   task_id: input.task_id,
-                  size: String(partObj.size),
+                  size: partObj.size,
                 },
               });
             }
@@ -187,7 +191,7 @@ export class VideoProcessorService implements OnModuleInit {
               bucket: videoObj.bucket,
               main: i === biggestSizeIdx,
               task_id: input.task_id,
-              size: String(videoObj.size),
+              size: videoObj.size,
             },
           });
 
@@ -196,7 +200,7 @@ export class VideoProcessorService implements OnModuleInit {
             status: task.status as TaskStatusEnum,
             bucket: videoObj.bucket,
             objectname: videoObj.objectname,
-            size: videoObj.size,
+            size: videoObj.size.toString(),
             created_at: task.created_at,
             originalname: input.originalname,
             task_id: task.id,
@@ -234,7 +238,7 @@ export class VideoProcessorService implements OnModuleInit {
         status: task.status as TaskStatusEnum,
         objectname: pImage.s3obj.objectname,
         originalname: input.originalname,
-        size: pImage.s3obj.size,
+        size: pImage.s3obj.size.toString(),
         type: FileTypeEnum.Preview,
         bucket: pImage.s3obj.bucket,
         task_id: input.task_id,
@@ -266,7 +270,7 @@ export class VideoProcessorService implements OnModuleInit {
           status: task.status as TaskStatusEnum,
           objectname: pImage.s3obj.objectname,
           originalname: input.originalname,
-          size: pImage.s3obj.size,
+          size: pImage.s3obj.size.toString(),
           type: FileTypeEnum.Thumbnail,
           bucket: pImage.s3obj.bucket,
           task_id: input.task_id,
@@ -284,6 +288,8 @@ export class VideoProcessorService implements OnModuleInit {
         data: { status: TaskStatusEnum.Done },
       });
 
+      const totalSize = await this.taskService.getTaskFilesTotalSize(task.id);
+
       await sleep(1000);
 
       await this.amqpConnection.publish<MsgTaskCompleted>(RMQ_CONSUMER_EXCHANGE, 'task_completed', {
@@ -291,6 +297,7 @@ export class VideoProcessorService implements OnModuleInit {
         uid: input.uid,
         action: task.action as FileActionsEnum,
         status: task.status as TaskStatusEnum,
+        total_size: totalSize.toString(),
       });
 
       this.logger.log(`Send message [task_completed] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);

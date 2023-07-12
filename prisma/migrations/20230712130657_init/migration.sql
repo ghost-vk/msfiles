@@ -19,7 +19,7 @@ CREATE TABLE "s3object" (
     "main" BOOLEAN NOT NULL DEFAULT false,
     "objectname" TEXT NOT NULL,
     "bucket" TEXT NOT NULL,
-    "size" TEXT,
+    "size" BIGINT,
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" DATETIME NOT NULL,
     CONSTRAINT "s3object_task_id_fkey" FOREIGN KEY ("task_id") REFERENCES "task" ("id") ON DELETE CASCADE ON UPDATE CASCADE

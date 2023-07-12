@@ -53,7 +53,7 @@ export function isCreateUploadUrlCacheData(obj: unknown): obj is CreateUploadUrl
 
 export type PutObjectResult = {
   objectname: string;
-  size: number;
+  size: bigint;
   metadata: Record<string, string>;
   bucket: string;
 };

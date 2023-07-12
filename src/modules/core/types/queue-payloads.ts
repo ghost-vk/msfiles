@@ -6,7 +6,7 @@ export type MsgFileUpload = {
   status: TaskStatusEnum;
   objectname: string;
   originalname: string;
-  size: number;
+  size: string;
   type: FileTypeEnum;
   metadata?: Record<string, unknown>;
   height?: number;
@@ -32,6 +32,7 @@ export type MsgTaskCompleted = {
   uid: string;
   status: TaskStatusEnum;
   action: FileActionsEnum;
+  total_size: string;
 };
 
 export type MsgTaskStart = {

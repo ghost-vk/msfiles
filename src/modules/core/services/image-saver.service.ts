@@ -33,7 +33,7 @@ export class ImageSaverService {
   ) {}
 
   async save(params: ImageSaveParams): Promise<ImageSaveResult> {
-    this.logger.log(`Start save image [${params.originalname}].`)
+    this.logger.log(`Start save image [${params.originalname}].`);
     this.logger.debug(`Save image params:\n${JSON.stringify(params, null, 2)}.`);
 
     let ext = extname(params.tempFilepath);
@@ -64,14 +64,14 @@ export class ImageSaverService {
     const rec = await this.prisma.s3Object.create({
       data: {
         objectname: s3obj.objectname,
-        size: String(s3obj.size),
+        size: s3obj.size,
         task_id: params.taskId,
         bucket: s3obj.bucket,
         main: params.main,
       },
     });
 
-    this.logger.log(`Saved image [${params.originalname}].`)
+    this.logger.log(`Saved image [${params.originalname}].`);
 
     return { rec, s3obj };
   }

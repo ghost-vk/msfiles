@@ -17,6 +17,7 @@ import { ImageConverterService } from './image-converter.service';
 import { ImageSaverService } from './image-saver.service';
 import { MinioService } from './minio.service';
 import { SizeDetectorService } from './size-detector.service';
+import { TaskService } from './task.service';
 import { TempTagRemoverService } from './temp-tag-remover.service';
 import { ThumbnailMakerService } from './thumbnail-maker.service';
 
@@ -47,6 +48,7 @@ export class ImageProcessorService implements OnModuleInit {
     private readonly tempTagRemover: TempTagRemoverService,
     private readonly imageSaver: ImageSaverService,
     private readonly amqpConnection: AmqpConnection,
+    private readonly taskService: TaskService,
   ) {}
 
   onModuleInit(): void {
@@ -61,6 +63,8 @@ export class ImageProcessorService implements OnModuleInit {
         this.logger.log(`Successfully upload image file [${event.originalname}].`);
       }
     });
+
+    this.logger.log('Subscribe for processing images...');
   }
 
   async process(input: ImageConversionPayload): Promise<void> {
@@ -114,7 +118,7 @@ export class ImageProcessorService implements OnModuleInit {
         status: task.status as TaskStatusEnum,
         objectname: mainImage.s3obj.objectname,
         originalname: input.originalname,
-        size: mainImage.s3obj.size,
+        size: mainImage.s3obj.size.toString(),
         type: FileTypeEnum.MainFile,
         bucket: mainImage.s3obj.bucket,
         task_id: input.task_id,
@@ -146,7 +150,7 @@ export class ImageProcessorService implements OnModuleInit {
           status: task.status as TaskStatusEnum,
           objectname: tImage.s3obj.objectname,
           originalname: input.originalname,
-          size: tImage.s3obj.size,
+          size: tImage.s3obj.size.toString(),
           type: FileTypeEnum.Thumbnail,
           bucket: tImage.s3obj.bucket,
           task_id: input.task_id,
@@ -164,6 +168,8 @@ export class ImageProcessorService implements OnModuleInit {
         data: { status: TaskStatusEnum.Done },
       });
 
+      const totalSize = await this.taskService.getTaskFilesTotalSize(task.id);
+
       await sleep(1000);
 
       await this.amqpConnection.publish<MsgTaskCompleted>(RMQ_CONSUMER_EXCHANGE, 'task_completed', {
@@ -171,6 +177,7 @@ export class ImageProcessorService implements OnModuleInit {
         uid: input.uid,
         status: task.status as TaskStatusEnum,
         action: task.action as FileActionsEnum,
+        total_size: totalSize.toString(),
       });
 
       this.logger.log(`Send message [task_completed] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);

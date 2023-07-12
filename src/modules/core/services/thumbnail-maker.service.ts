@@ -50,6 +50,8 @@ export class ThumbnailMakerService implements OnModuleInit {
 
         this.thumbnailsSetup.push({ width: +w, height: +h, fit });
       });
+
+    this.logger.log(`Setup thumbnails sizes:\n${JSON.stringify(this.thumbnailsSetup, null, 2)}`);
   }
 
   async makeThumbnails(filepath: string): Promise<MakeThumbnailsResult> {

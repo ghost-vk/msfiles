@@ -23,6 +23,8 @@ export class TempTagRemoverService implements OnModuleInit {
       this.logger.log(`Got event: remove temporary tag. Payload: ${JSON.stringify(event, null, 2)}.`);
       await this.process(event);
     });
+
+    this.logger.log('Subscribe for remove temporary tags...');
   }
 
   public async process(input: TempTagRemovePayload): Promise<void> {

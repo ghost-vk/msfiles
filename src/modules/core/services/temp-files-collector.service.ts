@@ -14,6 +14,7 @@ export class TempFilesCollectorService implements OnModuleInit {
 
   onModuleInit(): void {
     this.tmpFilesCollectorSubj$.subscribe((event: TmpFilesCollectorSubjPayload) => this.process(event));
+    this.logger.log('Subscribe for delete temp files...');
   }
 
   private async process(input: TmpFilesCollectorSubjPayload): Promise<void> {

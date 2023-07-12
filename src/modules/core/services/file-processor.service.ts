@@ -15,6 +15,7 @@ import { MsgFileUpload, MsgTaskCompleted } from '../types/queue-payloads';
 import { FilenameService } from './filename.service';
 import { ImageProcessorService } from './image-processor.service';
 import { MinioService } from './minio.service';
+import { TaskService } from './task.service';
 import { TempTagRemoverService } from './temp-tag-remover.service';
 import { VideoProcessorService } from './video-processor.service';
 
@@ -41,6 +42,7 @@ export class FileProcessorService implements OnModuleInit {
     private readonly tempTagRemover: TempTagRemoverService,
     private readonly amqpConnection: AmqpConnection,
     private readonly fileProcessorExceptionHandler: FileProcessorExceptionHandler,
+    private readonly taskService: TaskService,
   ) {}
 
   onModuleInit(): void {
@@ -54,6 +56,7 @@ export class FileProcessorService implements OnModuleInit {
         this.logger.log(`Finish process file [${event.originalname}].`);
       }
     });
+    this.logger.log('Subscribe for processing files...');
   }
 
   async process(input: FileProcessPayload): Promise<void> {
@@ -100,7 +103,7 @@ export class FileProcessorService implements OnModuleInit {
       await this.prisma.s3Object.create({
         data: {
           objectname: obj.objectname,
-          size: String(obj.size),
+          size: obj.size,
           task_id: input.task_id,
           bucket: obj.bucket,
           main: true,
@@ -112,7 +115,7 @@ export class FileProcessorService implements OnModuleInit {
         status: task.status as TaskStatusEnum,
         objectname: obj.objectname,
         originalname: input.originalname,
-        size: obj.size,
+        size: obj.size.toString(),
         type: FileTypeEnum.MainFile,
         bucket: obj.bucket,
         task_id: input.task_id,
@@ -128,6 +131,8 @@ export class FileProcessorService implements OnModuleInit {
         data: { status: TaskStatusEnum.Done },
       });
 
+      const totalSize = await this.taskService.getTaskFilesTotalSize(task.id);
+
       await sleep(1000);
 
       await this.amqpConnection.publish<MsgTaskCompleted>(RMQ_CONSUMER_EXCHANGE, 'task_completed', {
@@ -135,11 +140,12 @@ export class FileProcessorService implements OnModuleInit {
         uid: input.uid,
         status: task.status as TaskStatusEnum,
         action: task.action as FileActionsEnum,
+        total_size: totalSize.toString(),
       });
 
       this.logger.log(`Send message [task_completed] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
     } catch (e) {
-      this.logger.error(`Process file error. ${e}.`);
+      this.logger.error(`Process file error. ${e}.`, e);
 
       await this.fileProcessorExceptionHandler.handle(
         new FileProcessorException('Process file error.', {
