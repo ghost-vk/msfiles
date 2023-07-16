@@ -150,7 +150,7 @@ export class VideoProcessorService implements OnModuleInit {
             for (const p of parts) {
               const ext = extname(p);
 
-              if (ext === 'm3u8') continue;
+              if (ext === '.m3u8') continue;
               const pName = this.filenameService.generateFilename(input.originalname, {
                 ext,
                 type: FileTypeEnum.Part,
@@ -174,7 +174,7 @@ export class VideoProcessorService implements OnModuleInit {
           }
 
           const videoFileName = this.filenameService.generateFilename(input.originalname, {
-            ext: input.ext,
+            ext: input.ext === VideoExtensionEnum.Hls ? 'm3u8' : input.ext,
             type: i === biggestSizeIdx ? FileTypeEnum.MainFile : FileTypeEnum.AltVideo,
             ...videoSize,
           });
@@ -277,6 +277,7 @@ export class VideoProcessorService implements OnModuleInit {
           created_at: task.created_at,
           metadata: pImage.s3obj.metadata,
           uid: input.uid,
+          thumbnail_alias: t.alias,
           ...tImageSize,
         });
 

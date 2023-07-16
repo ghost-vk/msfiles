@@ -1,4 +1,4 @@
-import { RabbitPayload, RabbitRPC, RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
+import { defaultNackErrorHandler, RabbitPayload, RabbitRPC, RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
 import { CACHE_MANAGER, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cache } from 'cache-manager';
@@ -44,6 +44,7 @@ export class RmqMsgHandlerService {
     exchange: RMQ_MSFILES_EXCHANGE,
     queue: 'create_upload_url_queue',
     routingKey: 'create_upload_url',
+    errorHandler: defaultNackErrorHandler,
   })
   async createUploadUrl(@RabbitPayload(validationPipe) payload: CreateUploadUrlPayload): Promise<{ url: string }> {
     try {
@@ -92,6 +93,7 @@ export class RmqMsgHandlerService {
     exchange: RMQ_MSFILES_EXCHANGE,
     queue: 'delete_objects_queue',
     routingKey: 'delete_objects',
+    errorHandler: defaultNackErrorHandler,
   })
   async deleteObjects(@RabbitPayload(validationPipe) payload: DeleteObjectsPayload): Promise<void> {
     try {
@@ -100,9 +102,11 @@ export class RmqMsgHandlerService {
       await this.minioService.deleteObjects({
         bucket: payload.bucket,
         objectnames: payload.objects,
-        taskIds: payload.taskIds,
+        taskUids: payload.taskUids,
       });
     } catch (err) {
+      this.logger.error('Delete objects error.', err);
+
       throw new Error('Delete objects error.');
     }
   }
@@ -111,6 +115,7 @@ export class RmqMsgHandlerService {
     exchange: RMQ_MSFILES_EXCHANGE,
     queue: 'remove_temporary_tag_queue',
     routingKey: 'remove_temporary_tag',
+    errorHandler: defaultNackErrorHandler,
   })
   async removeTemporaryTag(@RabbitPayload(validationPipe) payload: RemoveTemporaryTagPayload): Promise<void> {
     let objs: string[] = [];
@@ -143,6 +148,7 @@ export class RmqMsgHandlerService {
     exchange: RMQ_MSFILES_EXCHANGE,
     queue: 'get_files_size_queue',
     routingKey: 'get_file_size',
+    errorHandler: defaultNackErrorHandler,
   })
   async getFilesSizeByTask(@RabbitPayload() payload: GetFilesSizeByTaskDto): Promise<GetFilesSizeByTaskResult> {
     this.logger.log(`Action: [get_file_size].`);
@@ -157,6 +163,7 @@ export class RmqMsgHandlerService {
     exchange: RMQ_MSFILES_EXCHANGE,
     queue: 'upload_res_queue',
     routingKey: 'consumer_saved_result',
+    errorHandler: defaultNackErrorHandler,
   })
   async handleUploadResponse(@RabbitPayload() payload: UploadResPayload): Promise<void> {
     this.logger.log(`Action: [consumer_saved_result].`);
@@ -170,7 +177,7 @@ export class RmqMsgHandlerService {
       return;
     }
 
-    this.logger.log(`Consumer has confirmed the saving of the file of task [${task.id}].`)
+    this.logger.log(`Consumer has confirmed the saving of the file of task [${task.id}].`);
 
     this.uploadResSubj$.next({ ...payload, taskId: task.id });
   }

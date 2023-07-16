@@ -1,22 +1,19 @@
-import {
-  ForbiddenException,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import to from 'await-to-js';
 import { isUndefined, uniq } from 'lodash';
 import { BucketItemStat, Client as MinioClient } from 'minio';
+import { dirname } from 'path';
 
 import { AppConfig } from '../../config/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PutObjectResult } from '../types';
+import { inspectFolder } from '../utils/inspect-folder';
 
 export type DeleteObjectsParams = {
   objectnames?: string[];
   taskIds?: number[];
+  taskUids?: string[];
   objectIds?: number[];
   bucket?: string;
 };
@@ -52,7 +49,8 @@ export class MinioService {
   ): Promise<PutObjectResult> {
     const bucket = options.bucket ?? this.bucket;
 
-    this.logger.log(`Start: upload file to minio. Options: ${JSON.stringify(options, null, 2)}`);
+    this.logger.log(`Start: upload file to minio.`);
+    this.logger.debug(`Options:\n${JSON.stringify(options, null, 2)}`);
 
     const [, fileStatRes] = await to(this.client.statObject(bucket, options.filename));
 
@@ -62,19 +60,23 @@ export class MinioService {
       throw new Error(`File [${options.filename}] already exist.`);
     }
 
+    this.logger.debug(`Trying to put object [${options.filename}] to minio bucket [${bucket}] from [${filepath}].`);
+
     const [uploadError] = await to(this.client.fPutObject(bucket, options.filename, filepath));
 
     if (uploadError) {
-      this.logger.error('Error occured while upload error.', uploadError);
+      this.logger.error('Error occurred while upload error.', uploadError);
 
-      throw new InternalServerErrorException('File upload error.');
+      await inspectFolder(dirname(filepath), this.logger);
+
+      throw new Error('File upload error.');
     }
 
     if (isUndefined(options.temporary) || options.temporary) {
       const done = await this.setTemporaryTag(options.filename, { bucket });
 
       if (!done) {
-        throw new InternalServerErrorException('File upload error.');
+        throw new Error('File upload error.');
       }
     }
 
@@ -91,8 +93,14 @@ export class MinioService {
   }
 
   async getObjectUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
-    if (options.bucket === 'public') {
-      return this.config.get('BASE_URL') + '/public/' + objectName;
+    if (options.bucket === 'msfiles-public') {
+      const [err] = await to(this.client.statObject(options.bucket, objectName));
+
+      if (err) {
+        throw new NotFoundException('File is not exist.');
+      }
+
+      return this.config.get('BASE_URL') + '/msfiles-public/' + objectName;
     }
 
     return this.getPresignedDownloadUrl(objectName, options);
@@ -127,8 +135,18 @@ export class MinioService {
   async deleteObjects(params: DeleteObjectsParams): Promise<boolean> {
     const bucket = params.bucket ?? this.bucket;
 
+    const tasksByUids = params.taskUids
+      ? await this.prisma.task.findMany({
+          where: { uid: { in: params.taskUids } },
+          select: { id: true },
+        })
+      : [];
+
+    const inputIds = params.taskIds ?? [];
+    const taskIds: number[] = inputIds.concat(...tasksByUids.map((t) => t.id));
+
     const objs = await this.prisma.s3Object.findMany({
-      where: { id: { in: params.objectIds }, objectname: { in: params.objectnames }, task_id: { in: params.taskIds } },
+      where: { task_id: { in: taskIds } },
       select: { objectname: true, bucket: true },
       distinct: 'objectname',
     });
@@ -136,23 +154,33 @@ export class MinioService {
     const uniqBuckets = uniq(objs.map((o) => o.bucket));
 
     if (uniqBuckets.length > 1) {
-      throw new ForbiddenException(
+      this.logger.error(`Error delete objects: [${objs.map((o) => o.objectname).join(', ')}].`);
+
+      throw new Error(
         `Available delete batch of objects only for one bucket. Got buckets [${uniqBuckets.join(', ')}].`,
       );
     }
 
-    const objnames = objs.map((o) => o.objectname);
+    if (uniqBuckets.length && bucket !== uniqBuckets[0]) {
+      throw new Error(
+        `Bucket for delete objects are not match. Provided bucket is [${bucket}], but objects placed at [${uniqBuckets[0]}].`,
+      );
+    }
+
+    let objnames = objs.map((o) => o.objectname);
+
+    objnames = params.objectnames ? uniq(objnames.concat(...params.objectnames)) : objnames;
 
     const [err] = await to(this.client.removeObjects(bucket, objnames));
 
     if (err) {
-      this.logger.error(`🔴 Error occured when delele objects: [${objnames.join(', ')}].`, err);
+      this.logger.error(`🔴 Error occurred when delete objects: [${objnames.join(', ')}].`, err);
     }
 
     if (objnames.length) {
       this.logger.log(`Objects [${objnames.join(', ')}] successfully deleted from bucket [${bucket}].`);
     } else {
-      this.logger.log(`Nothing to delete. Find objects parameters: ${JSON.stringify(params, null, 2)}.`);
+      this.logger.log(`Nothing to delete. Skip deletion.`);
     }
 
     return !err;

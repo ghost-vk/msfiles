@@ -61,7 +61,7 @@ export class FileProcessorService implements OnModuleInit {
 
   async process(input: FileProcessPayload): Promise<void> {
     try {
-      const ext = extname(input.originalname);
+      const ext = extname(input.originalname).replace('.', '');
 
       let task = await this.prisma.task.findUniqueOrThrow({ where: { id: input.task_id } });
 
@@ -115,7 +115,7 @@ export class FileProcessorService implements OnModuleInit {
         status: task.status as TaskStatusEnum,
         objectname: obj.objectname,
         originalname: input.originalname,
-        size: obj.size.toString(),
+        size: String(obj.size),
         type: FileTypeEnum.MainFile,
         bucket: obj.bucket,
         task_id: input.task_id,

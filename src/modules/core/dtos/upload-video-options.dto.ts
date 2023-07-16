@@ -54,4 +54,19 @@ export class UploadVideoOptionsDto {
   )
   @ApiPropertyOptional({ type: String })
   s?: VideoSizeDto[];
+
+  /**
+   * **Do not use this field with large files**. The user will wait a long time for
+   * a response or the request will end with a timeout.
+   *
+   * Upload file synchronously or asynchronously.
+   * If asynchronously will place file at temp folder and return 201.
+   * After that, processor will start converting and uploading the file to the S3 Minio.
+   *
+   * @default(false)
+   */
+  @Transform(({ value }) => value === 'true')
+  @IsBoolean()
+  @IsOptional()
+  synchronously?: boolean;
 }

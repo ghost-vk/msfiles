@@ -376,7 +376,46 @@ export class StorageController {
         uid: uploadConfig.uid,
       });
 
-      return new Task(taskRecord);
+      if (!options.synchronously) return new Task(taskRecord);
+
+      this.logger.debug(`Synchronously uploading video file...`);
+
+      return await new Promise((resolve, reject) => {
+        const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(
+          timeout(30000), // todo move it to env
+          catchError((): ObservableInput<unknown> => {
+            const msg = 'No response from consumer after 30s.';
+
+            this.logger.log(msg);
+
+            s$.unsubscribe();
+
+            const err = new Error('TimeoutException');
+
+            reject(err);
+
+            throw err; // TODO Refactor it. Handle error through rxjs.
+          }),
+        );
+        const s$ = o$.subscribe({
+          next: async (event: UploadResSubjPayload) => {
+            if (event.taskId !== taskRecord.id) return;
+
+            try {
+              const task = await this.prisma.task.findUniqueOrThrow({ where: { id: event.taskId } });
+
+              resolve(new Task(task));
+            } catch (error) {
+              reject(error);
+            } finally {
+              s$.unsubscribe();
+            }
+          },
+          error: (error) => {
+            reject(error);
+          },
+        });
+      });
     } catch (err) {
       await this.prisma.task.update({
         where: { id: taskRecord.id },

@@ -15,15 +15,20 @@ export type ConvertVideoOptions = {
 
 @Injectable()
 export class VideoConverterService {
-  private  readonly  logger = new Logger(VideoConverterService.name)
+  private readonly logger = new Logger(VideoConverterService.name);
   constructor(private readonly ffmpeg: FFmpegService) {}
 
+  /**
+   * @returns { string } Conversion result path.
+   */
   public async convertVideo(
     filepath: string,
     options: ConvertVideoOptions = { ext: VideoExtensionEnum.Mp4, convert: true },
   ): Promise<string> {
     const outputDir = await mkdtemp(join(dirname(filepath), 'cv_' + nanoid(5)));
-    const outputPath = outputDir + nanoid(21) + '.' + options.ext;
+    const outputPath = join(outputDir, nanoid(21) + '.' + (options.ext === VideoExtensionEnum.Hls ? 'm3u8' : options.ext));
+
+    this.logger.debug(`Convert video output path: [${outputPath}].`)
 
     switch (options.ext) {
       case VideoExtensionEnum.Mp4: {

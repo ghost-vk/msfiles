@@ -15,6 +15,7 @@ export type MsgFileUpload = {
   task_id: number;
   uid: string;
   created_at: Date;
+  thumbnail_alias?: string;
 };
 
 export type MsgTaskError = {

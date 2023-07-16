@@ -365,7 +365,7 @@ describe('Storage controller (external endpoint)', () => {
         }),
       );
 
-      let task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+      const task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
 
       expect(task).toEqual(
         expect.objectContaining({
@@ -380,8 +380,6 @@ describe('Storage controller (external endpoint)', () => {
           updated_at: expect.any(Date),
         }),
       );
-
-      task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
 
       const files = await prisma.s3Object.findMany({ where: { task_id: body.id } });
 
@@ -524,7 +522,7 @@ describe('Storage controller (external endpoint)', () => {
         }),
       );
 
-      let task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+      const task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
 
       expect(task).toEqual(
         expect.objectContaining({
@@ -539,8 +537,6 @@ describe('Storage controller (external endpoint)', () => {
           updated_at: expect.any(Date),
         }),
       );
-
-      task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
 
       const files = await prisma.s3Object.findMany({ where: { task_id: body.id } });
 
@@ -939,7 +935,7 @@ describe('Storage controller (external endpoint)', () => {
             id: expect.any(Number),
             task_id: body.id,
             main: false,
-            objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.webp$/),
+            objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.png$/),
             bucket: config.get('MINIO_BUCKET'),
             size: expect.any(BigInt),
             created_at: expect.any(Date),
@@ -1316,7 +1312,7 @@ describe('Storage controller (external endpoint)', () => {
               id: expect.any(Number),
               task_id: body.id,
               main: false,
-              objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.webp$/),
+              objectname: expect.stringMatching(/^test_(\d{2,4}x\d{2,4})_th.{6}\.jpeg$/),
               bucket: config.get('MINIO_BUCKET'),
               size: expect.any(BigInt),
               created_at: expect.any(Date),
@@ -2702,6 +2698,78 @@ describe('Storage controller (external endpoint)', () => {
       );
 
       await sleep(1200);
+
+      expect(taskCompletedMessages.length).toBe(1);
+
+      expect(taskCompletedMessages[0]).toEqual(
+        expect.objectContaining({
+          action: FileActionsEnum.UploadVideo,
+          status: TaskStatusEnum.Done,
+          task_id: task.id,
+          uid: uid,
+          total_size: expect.any(String),
+        }),
+      );
+    });
+
+    it('should successfully upload video file synchronously', async () => {
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadVideo, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      setTimeout(() => {
+        channel.publish(RMQ_MSFILES_EXCHANGE, 'consumer_saved_result', Buffer.from(JSON.stringify({ uid })));
+      }, 5000);
+
+      const { body } = await request(server)
+        .post(`/storage/uploadVideo/${key}?synchronously=true`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', 'test.mov'))
+        .expect(201);
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          id: expect.any(Number),
+          uid: uid,
+          status: TaskStatusEnum.Done,
+          action: FileActionsEnum.UploadVideo,
+          parameters: '{"synchronously":true}',
+        }),
+      );
+
+      const task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      expect(task).toEqual(
+        expect.objectContaining({
+          id: body.id,
+          uid: uid,
+          status: TaskStatusEnum.Done,
+          action: FileActionsEnum.UploadVideo,
+          parameters: '{"synchronously":true}',
+        }),
+      );
+
+      const files = await prisma.s3Object.findMany({ where: { task_id: body.id }, orderBy: { created_at: 'desc' } });
+
+      const previewFilesCount = 1;
+      const mainFileCount = 1;
+
+      expect(files.length).toBe(THUMBNAILS_COUNT + previewFilesCount + mainFileCount);
+
+      const mainFile = files.find((f) => f.main === true);
+
+      if (!mainFile) throw Error('Main file not set.');
+
+      // Проверим что файлы загружены в minio
+      const obj1 = await minio.getFileStat(files[0].objectname, { bucket: config.get('MINIO_BUCKET') });
+      const obj2 = await minio.getFileStat(files[1].objectname, { bucket: config.get('MINIO_BUCKET') });
+      const obj3 = await minio.getFileStat(files[2].objectname, { bucket: config.get('MINIO_BUCKET') });
+
+      expect(obj1).toBeTruthy();
+      expect(obj2).toBeTruthy();
+      expect(obj3).toBeTruthy();
 
       expect(taskCompletedMessages.length).toBe(1);
 

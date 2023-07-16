@@ -3,11 +3,13 @@ import { ConfigService } from '@nestjs/config';
 
 import { ImageExtensionEnum } from '../types';
 import { ConvertImageFit, ImageConverterService, isAvailableImageFit } from './image-converter.service';
+import { SizeDetectorService } from './size-detector.service';
 
 export type ThumbnailSetup = {
   width: number;
   height: number;
   fit: ConvertImageFit;
+  alias: string;
 };
 
 export type MakeThumbnailsResult = Array<
@@ -21,14 +23,18 @@ export class ThumbnailMakerService implements OnModuleInit {
   private readonly thumbnailsSetup: ThumbnailSetup[] = [];
   private readonly logger = new Logger(ThumbnailMakerService.name);
 
-  constructor(private readonly imageConverterService: ImageConverterService, private readonly config: ConfigService) {}
+  constructor(
+    private readonly imageConverterService: ImageConverterService,
+    private readonly config: ConfigService,
+    private readonly sizeDetector: SizeDetectorService,
+  ) {}
 
   onModuleInit(): void {
     this.config
       .get('THUMBNAIL_SIZES')
       .split(',')
       .forEach((config) => {
-        const [size, fit] = config.split('::');
+        const [size, fit, _alias] = config.split('::');
 
         if (!size) {
           throw new Error('Size not detected.');
@@ -48,20 +54,29 @@ export class ThumbnailMakerService implements OnModuleInit {
           throw new Error(`Not available width [${w}] or height [${h}]. Widht and height should be integer type.`);
         }
 
-        this.thumbnailsSetup.push({ width: +w, height: +h, fit });
+        const alias = _alias ? String(_alias) : String(_alias);
+
+        this.thumbnailsSetup.push({ width: +w, height: +h, fit, alias });
       });
 
     this.logger.log(`Setup thumbnails sizes:\n${JSON.stringify(this.thumbnailsSetup, null, 2)}`);
   }
 
-  async makeThumbnails(filepath: string): Promise<MakeThumbnailsResult> {
+  async makeThumbnails(filepath: string, ext: ImageExtensionEnum = ImageExtensionEnum.Webp): Promise<MakeThumbnailsResult> {
     this.logger.log(`Start: make [${this.thumbnailsSetup.length}] thumbnails for [${filepath}].`);
 
     const result: MakeThumbnailsResult = [];
 
+    const originalImageSize = await this.sizeDetector.getImageSize(filepath);
+
     for (const config of this.thumbnailsSetup) {
+      const orgnImgHasLowerResolutionThumbnail =
+        config.width >= (originalImageSize.width ?? 999999) || config.height >= (originalImageSize.height ?? 999999);
+
+      if (orgnImgHasLowerResolutionThumbnail) continue;
+
       const resultFilepath = await this.imageConverterService.convertImage(filepath, {
-        ext: ImageExtensionEnum.Webp,
+        ext,
         convert: true,
         resize: true,
         ...config,

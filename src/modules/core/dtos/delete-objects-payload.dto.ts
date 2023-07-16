@@ -1,10 +1,9 @@
-import { ArrayMinSize, IsArray, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class DeleteObjectsPayload {
   @IsArray()
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
-  @ArrayMinSize(1)
   @IsOptional()
   objects?: string[];
 
@@ -12,7 +11,8 @@ export class DeleteObjectsPayload {
   @IsOptional()
   bucket?: string;
 
-  @IsInt()
+  @IsArray()
+  @IsUUID('all', { each: true })
   @IsOptional()
-  taskIds?: number[];
+  taskUids?: string[];
 }

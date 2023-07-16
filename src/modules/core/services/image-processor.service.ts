@@ -130,7 +130,7 @@ export class ImageProcessorService implements OnModuleInit {
 
       this.logger.log(`Send message [uploaded_image] to exchange [${RMQ_CONSUMER_EXCHANGE}].`);
 
-      const thumbnails = await this.thumbnailMaker.makeThumbnails(originalFileTmpPath);
+      const thumbnails = await this.thumbnailMaker.makeThumbnails(originalFileTmpPath, input.ext);
 
       for (const t of thumbnails) {
         const tSize = await this.sizeDetector.getImageSize(t.filepath);
@@ -157,6 +157,7 @@ export class ImageProcessorService implements OnModuleInit {
           created_at: task.created_at,
           metadata: tImage.s3obj.metadata,
           uid: input.uid,
+          thumbnail_alias: t.alias,
           ...tSize,
         });
 
