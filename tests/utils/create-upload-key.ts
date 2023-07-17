@@ -43,7 +43,7 @@ export const createUploadKey = async (params: CreateUploadKeyParams): Promise<{ 
     }
   }
 
-  const url = params.config.get('BASE_URL') + `/storage/${route}/${key}`;
+  const url = params.config.get('BASE_URL') + `/${route}/${key}`;
 
   return { url, key };
 };

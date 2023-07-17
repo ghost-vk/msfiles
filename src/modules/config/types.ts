@@ -17,6 +17,7 @@ export interface AppConfig {
   MINIO_ROOT_PASSWORD: string;
   MINIO_BUCKET: string;
   MINIO_ADDITIONAL_BUCKETS_ARRAY: string[];
+  PUBLIC_BUCKET_EXTERNAL_URL?: string;
   PRISMA_LOGGER_LEVELS_ARRAY: string[];
   RABBITMQ_USER: string;
   RABBITMQ_PASSWORD: string;
@@ -49,6 +50,7 @@ export interface EnvVariables {
   MINIO_ROOT_PASSWORD: string;
   MINIO_BUCKET: string;
   MINIO_ADDITIONAL_BUCKETS?: string;
+  PUBLIC_BUCKET_EXTERNAL_URL?: string;
   PRISMA_LOGGER_LEVELS: string;
   RABBITMQ_USER: string;
   RABBITMQ_PASSWORD: string;

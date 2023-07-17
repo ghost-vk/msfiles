@@ -77,7 +77,7 @@ export class RmqMsgHandlerService {
         }
       }
 
-      const url = this.config.get('BASE_URL') + `/storage/${route}/${key}`;
+      const url = this.config.get('BASE_URL') + `/${route}/${key}`;
 
       this.logger.log(`File upload URL generated [${url}].`);
 

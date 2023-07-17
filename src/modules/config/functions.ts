@@ -32,6 +32,7 @@ export const loadConfig = (): AppConfig => ({
   MINIO_ADDITIONAL_BUCKETS_ARRAY: process.env.MINIO_ADDITIONAL_BUCKETS
     ? splitByComma(process.env.MINIO_ADDITIONAL_BUCKETS)
     : [],
+  PUBLIC_BUCKET_EXTERNAL_URL: process.env.PUBLIC_BUCKET_EXTERNAL_URL,
   PRISMA_LOGGER_LEVELS_ARRAY: splitByComma(process.env.PRISMA_LOGGER_LEVELS ?? 'error'),
   RABBITMQ_USER: process.env.RABBITMQ_USER as string,
   RABBITMQ_PASSWORD: process.env.RABBITMQ_PASSWORD as string,
@@ -75,6 +76,7 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
   MINIO_ROOT_PASSWORD: Joi.string().required().label('MINIO_ROOT_PASSWORD'),
   MINIO_BUCKET: Joi.string().required().label('MINIO_BUCKET'),
   MINIO_ADDITIONAL_BUCKETS: Joi.string().optional().label('MINIO_ADDITIONAL_BUCKETS'),
+  PUBLIC_BUCKET_EXTERNAL_URL: Joi.string().optional().label('PUBLIC_BUCKET_EXTERNAL_URL'),
   DATABASE_URL: Joi.string().required().label('DATABASE_URL'),
   RABBITMQ_USER: Joi.string().required().label('RABBITMQ_USER'),
   RABBITMQ_PASSWORD: Joi.string().required().label('RABBITMQ_PASSWORD'),

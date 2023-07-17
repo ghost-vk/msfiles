@@ -93,14 +93,14 @@ export class MinioService {
   }
 
   async getObjectUrl(objectName: string, options: { bucket?: string } = {}): Promise<string> {
-    if (options.bucket === 'msfiles-public') {
+    if (options.bucket === 'msfiles-public' && this.config.get('PUBLIC_BUCKET_EXTERNAL_URL')) {
       const [err] = await to(this.client.statObject(options.bucket, objectName));
 
       if (err) {
         throw new NotFoundException('File is not exist.');
       }
 
-      return this.config.get('BASE_URL') + '/msfiles-public/' + objectName;
+      return this.config.get('PUBLIC_BUCKET_EXTERNAL_URL') + `/${objectName}`;
     }
 
     return this.getPresignedDownloadUrl(objectName, options);
