@@ -33,6 +33,9 @@ export type MsgTaskCompleted = {
   uid: string;
   status: TaskStatusEnum;
   action: FileActionsEnum;
+  /**
+   * Size of attachments includes previews, alt videos, thumbnails, etc.
+   */
   total_size: string;
 };
 
