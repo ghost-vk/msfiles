@@ -19,6 +19,7 @@ export const loadConfig = (): AppConfig => ({
   NODE_ENV: process.env.NODE_ENV as NodeEnv,
   APPLICATION_PORT: +(process.env.APPLICATION_PORT as string),
   APPLICATION_HOST: process.env.APPLICATION_HOST as string,
+  APPLICATION_PREFIX: process.env.APPLICATION_PREFIX,
   BASE_URL: process.env.BASE_URL as string,
   LOGGER_BOOL: convertEnvToBoolean(process.env.LOGGER),
   LOGGER_LEVELS_ARRAY: splitByComma(process.env.LOGGER_LEVELS as string),
@@ -55,6 +56,7 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
   NODE_ENV: Joi.string().required().valid('production', 'development').label('NODE_ENV'),
   APPLICATION_PORT: Joi.number().integer().positive().label('APPLICATION_PORT'),
   APPLICATION_HOST: Joi.string().required().label('APPLICATION_HOST'),
+  APPLICATION_PREFIX: Joi.string().optional().label('APPLICATION_PREFIX'),
   BASE_URL: Joi.string().required().uri().label('BASE_URL'),
   LOGGER: Joi.string()
     .required()

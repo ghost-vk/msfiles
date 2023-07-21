@@ -6,6 +6,7 @@ export interface AppConfig {
   NODE_ENV: NodeEnv;
   APPLICATION_PORT: number;
   APPLICATION_HOST: string;
+  APPLICATION_PREFIX?: string;
   BASE_URL: string;
   LOGGER_BOOL: boolean;
   LOGGER_LEVELS_ARRAY: string[];
@@ -39,6 +40,7 @@ export interface EnvVariables {
   NODE_ENV: NodeEnv;
   APPLICATION_PORT: number;
   APPLICATION_HOST: string;
+  APPLICATION_PREFIX?: string;
   BASE_URL: string;
   LOGGER: EnvBoolean;
   LOGGER_LEVELS: string;
