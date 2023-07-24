@@ -32,6 +32,7 @@ export interface AppConfig {
   REDIS_PASSWORD: string;
   REDIS_PORT: string;
   REDIS_HOST: string;
+  CORS_ORIGINS_ARRAY?: string[];
 }
 
 export type EnvBoolean = 'y' | 'n';
@@ -66,4 +67,5 @@ export interface EnvVariables {
   REDIS_PASSWORD: string;
   REDIS_PORT: string;
   REDIS_HOST: string;
+  CORS_ORIGINS: string;
 }

@@ -14,6 +14,8 @@ import { validationPipe } from './validation.pipe';
   app.useLogger(config.get('LOGGER_BOOL') ? config.get('LOGGER_LEVELS_ARRAY') : false);
   app.useGlobalPipes(validationPipe);
 
+  if (config.get('CORS_ORIGINS_ARRAY')) app.enableCors({ origin: config.get('CORS_ORIGINS_ARRAY') });
+
   const port = config.get('APPLICATION_PORT');
 
   if (config.get('APPLICATION_PREFIX')) {

@@ -47,6 +47,7 @@ export const loadConfig = (): AppConfig => ({
   REDIS_PASSWORD: process.env.REDIS_PASSWORD as string,
   REDIS_PORT: process.env.REDIS_PORT as string,
   REDIS_HOST: process.env.REDIS_HOST as string,
+  CORS_ORIGINS_ARRAY: process.env.CORS_ORIGINS_ARRAY ? splitByComma(process.env.CORS_ORIGINS_ARRAY) : undefined,
 });
 
 /**
@@ -94,4 +95,5 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
   REDIS_PASSWORD: Joi.string().required().label('REDIS_PASSWORD'),
   REDIS_PORT: Joi.string().required().label('REDIS_PORT'),
   REDIS_HOST: Joi.string().required().label('REDIS_HOST'),
+  CORS_ORIGINS: Joi.string().optional().label('CORS_ORIGINS'),
 });
