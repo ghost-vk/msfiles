@@ -47,7 +47,7 @@ export const loadConfig = (): AppConfig => ({
   REDIS_PASSWORD: process.env.REDIS_PASSWORD as string,
   REDIS_PORT: process.env.REDIS_PORT as string,
   REDIS_HOST: process.env.REDIS_HOST as string,
-  CORS_ORIGINS_ARRAY: process.env.CORS_ORIGINS_ARRAY ? splitByComma(process.env.CORS_ORIGINS_ARRAY) : undefined,
+  CORS_ORIGINS_ARRAY: process.env.CORS_ORIGINS ? splitByComma(process.env.CORS_ORIGINS) : undefined,
 });
 
 /**

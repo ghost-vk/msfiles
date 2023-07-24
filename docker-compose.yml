@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   app:
-    image: ghostvk/msfiles:1.0.0
+    image: ghostvk/msfiles:1.0.1
     build:
       context: .
       dockerfile: Dockerfile
