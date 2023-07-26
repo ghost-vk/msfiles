@@ -6,10 +6,10 @@ import { FileActionsEnum, isFileAction, isTaskStatus, TaskStatusEnum } from '../
 
 export class Task {
   id: number;
+  uid: string;
   status: TaskStatusEnum;
   action: FileActionsEnum;
   originalname: string;
-  objectname?: string | null;
   bucket: string;
   parameters: string | null;
   @Exclude()
