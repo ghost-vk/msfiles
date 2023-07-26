@@ -36,6 +36,12 @@ export class UploadImageOptionsDto {
   @IsPositive()
   h?: number;
 
+  /**
+   * Should convert source file or raw upload. Even if you don't need to convert (convert=false),
+   * thumbnails will be created _(only if env variable THUMBNAIL_SIZES are set)_.
+   *
+   * By default conversion is enabled.
+   */
   @Transform(({ value }) => value === 'true')
   @IsBoolean()
   @IsOptional()

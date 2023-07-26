@@ -17,6 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiParam, ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 import { mkdtemp, writeFile } from 'fs/promises';
+import { isUndefined } from 'lodash';
 import { nanoid } from 'nanoid';
 import { tmpdir } from 'os';
 import { extname, join } from 'path';
@@ -247,7 +248,7 @@ export class StorageController {
         height: options.h,
         bucket: uploadConfig?.bucket,
         uid: uploadConfig.uid,
-        convert: options.convert ?? true,
+        convert: isUndefined(options.convert) ? true : options.convert,
       });
 
       if (!options.synchronously) return new Task(taskRecord);
@@ -369,7 +370,7 @@ export class StorageController {
         originalname: file.originalname,
         dir: dir,
         filename: inputFileName,
-        convert: options.convert,
+        convert: isUndefined(options.convert) ? true : options.convert,
         sizes: options.s ? options.s.map((s) => ({ width: s.w, height: s.h })) : [],
         task_id: taskRecord.id,
         bucket: uploadConfig?.bucket,

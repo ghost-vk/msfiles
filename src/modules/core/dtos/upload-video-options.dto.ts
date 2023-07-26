@@ -7,11 +7,21 @@ import { VideoExtensionEnum } from '../types';
 import { VideoSizeDto } from './video-size.dto';
 
 export class UploadVideoOptionsDto {
+  /**
+   * Should convert source file or raw upload. Even if you don't need to convert (convert=false),
+   * thumbnails will be created _(only if env variable THUMBNAIL_SIZES are set)_.
+   * If conversion is disabled, videos in alternative resolutions will not be generated.
+   *
+   * By default conversion is enabled.
+   */
   @IsOptional()
   @IsBoolean()
   @Transform(({ value }) => value === 'true')
   convert?: boolean;
 
+  /**
+   * Target video extension
+   */
   @IsIn(Object.values(VideoExtensionEnum))
   @IsOptional()
   ext?: VideoExtensionEnum;
