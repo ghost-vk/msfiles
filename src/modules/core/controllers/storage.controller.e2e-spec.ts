@@ -1,5 +1,6 @@
 import { CACHE_MANAGER, HttpServer, INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Task } from '@prisma/client';
 import { Channel, connect, Connection } from 'amqplib';
 import { Cache } from 'cache-manager';
 import { randomUUID } from 'crypto';
@@ -2782,6 +2783,57 @@ describe('Storage controller (external endpoint)', () => {
           total_size: expect.any(String),
         }),
       );
+    });
+  });
+
+  describe('POST: /storage/getUploadTask', () => {
+    let fakeTask: Task;
+    const fakeUid = randomUUID();
+
+    afterEach(async () => {
+      await prisma.task.deleteMany({});
+    });
+
+    beforeEach(async () => {
+      fakeTask = await prisma.task.create({
+        data: {
+          uid: fakeUid,
+          status: TaskStatusEnum.InProgress,
+          action: FileActionsEnum.UploadImage,
+          originalname: 'originalname',
+          bucket: 'bucket',
+        },
+      });
+    });
+
+    it('should successfully retrieve task by id', async () => {
+      const { body } = await request(server).post(`/storage/getUploadTask`).send({ taskId: fakeTask.id }).expect(200);
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          id: fakeTask.id,
+          uid: fakeUid,
+          status: TaskStatusEnum.InProgress,
+          action: FileActionsEnum.UploadImage,
+        }),
+      );
+    });
+
+    it('should successfully retrieve task by uid', async () => {
+      const { body } = await request(server).post(`/storage/getUploadTask`).send({ taskUid: fakeTask.uid }).expect(200);
+
+      expect(body).toEqual(
+        expect.objectContaining({
+          id: fakeTask.id,
+          uid: fakeUid,
+          status: TaskStatusEnum.InProgress,
+          action: FileActionsEnum.UploadImage,
+        }),
+      );
+    });
+
+    it('should throw bad request exception if not enough data in input', async () => {
+      await request(server).post(`/storage/getUploadTask`).send({ foo: 'bar' }).expect(400);
     });
   });
 });

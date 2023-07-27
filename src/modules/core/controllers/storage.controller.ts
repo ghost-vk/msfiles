@@ -1,9 +1,11 @@
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import {
   BadRequestException,
+  Body,
   ClassSerializerInterceptor,
   Controller,
   ForbiddenException,
+  HttpCode,
   InternalServerErrorException,
   Logger,
   Param,
@@ -31,6 +33,7 @@ import { FileActionsEnum, TaskStatusEnum } from '../../config/actions';
 import { RMQ_CONSUMER_EXCHANGE } from '../../config/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FileUploadDto } from '../dtos/file-upload.dto';
+import { GetUploadStatusDto } from '../dtos/get-upload-status.dto';
 import { UploadFileOptionsDto } from '../dtos/upload-file-options.dto';
 import { UploadImageOptionsDto } from '../dtos/upload-image-options.dto';
 import { UploadVideoOptionsDto } from '../dtos/upload-video-options.dto';
@@ -425,5 +428,21 @@ export class StorageController {
 
       throw new InternalServerErrorException('Video upload error.');
     }
+  }
+
+  /**
+   * Method retrieves task from database by {@link GetUploadStatusDto}
+   */
+  @Post('getUploadTask')
+  @ApiBody({ type: GetUploadStatusDto })
+  @HttpCode(200)
+  async getUploadTask(@Body() body: GetUploadStatusDto): Promise<Task> {
+    this.logger.debug(`Get upload task by input:\b${JSON.stringify(body, null, 2)}`);
+
+    const rec = await this.prisma.task.findFirstOrThrow({
+      where: { id: body.taskId, uid: body.taskUid },
+    });
+
+    return new Task(rec);
   }
 }
