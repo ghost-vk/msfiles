@@ -17,8 +17,8 @@ import { availableEnvBoolean, convertEnvToBoolean, splitByComma } from './utils'
  */
 export const loadConfig = (): AppConfig => ({
   NODE_ENV: process.env.NODE_ENV as NodeEnv,
-  APPLICATION_PORT: +(process.env.APPLICATION_PORT as string),
-  APPLICATION_HOST: process.env.APPLICATION_HOST as string,
+  APPLICATION_PORT: process.env.APPLICATION_PORT ? +(process.env.APPLICATION_PORT as string) : 8080,
+  APPLICATION_HOST: process.env.APPLICATION_HOST ?? '0.0.0.0',
   APPLICATION_PREFIX: process.env.APPLICATION_PREFIX,
   BASE_URL: process.env.BASE_URL as string,
   LOGGER_BOOL: convertEnvToBoolean(process.env.LOGGER),
@@ -48,15 +48,19 @@ export const loadConfig = (): AppConfig => ({
   REDIS_PORT: process.env.REDIS_PORT as string,
   REDIS_HOST: process.env.REDIS_HOST as string,
   CORS_ORIGINS_ARRAY: process.env.CORS_ORIGINS ? splitByComma(process.env.CORS_ORIGINS) : undefined,
+  // Default values also here src/modules/config/constants.ts
+  MAX_FILE_SIZE_MB: process.env.MAX_FILE_SIZE_MB ? +process.env.MAX_FILE_SIZE_MB : 5,
+  MAX_IMAGE_SIZE_MB: process.env.MAX_IMAGE_SIZE_MB ? +process.env.MAX_IMAGE_SIZE_MB : 5,
+  MAX_VIDEO_SIZE_MB: process.env.MAX_VIDEO_SIZE_MB ? +process.env.MAX_VIDEO_SIZE_MB : 10,
 });
 
 /**
  * Функция валидирует переданные env переменные с помощью Joi схемы
  */
 export const validationEnvSchema = Joi.object<EnvVariables, true>({
-  NODE_ENV: Joi.string().required().valid('production', 'development').label('NODE_ENV'),
-  APPLICATION_PORT: Joi.number().integer().positive().label('APPLICATION_PORT'),
-  APPLICATION_HOST: Joi.string().required().label('APPLICATION_HOST'),
+  NODE_ENV: Joi.string().required().valid('production', 'development', 'test').label('NODE_ENV'),
+  APPLICATION_PORT: Joi.number().optional().integer().positive().label('APPLICATION_PORT'),
+  APPLICATION_HOST: Joi.string().optional().label('APPLICATION_HOST'),
   APPLICATION_PREFIX: Joi.string().optional().label('APPLICATION_PREFIX'),
   BASE_URL: Joi.string().required().uri().label('BASE_URL'),
   LOGGER: Joi.string()
@@ -96,4 +100,7 @@ export const validationEnvSchema = Joi.object<EnvVariables, true>({
   REDIS_PORT: Joi.string().required().label('REDIS_PORT'),
   REDIS_HOST: Joi.string().required().label('REDIS_HOST'),
   CORS_ORIGINS: Joi.string().optional().label('CORS_ORIGINS'),
+  MAX_FILE_SIZE_MB: Joi.number().optional().label('MAX_FILE_SIZE_MB'),
+  MAX_IMAGE_SIZE_MB: Joi.number().optional().label('MAX_IMAGE_SIZE_MB'),
+  MAX_VIDEO_SIZE_MB: Joi.number().optional().label('MAX_VIDEO_SIZE_MB'),
 });

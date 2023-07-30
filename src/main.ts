@@ -32,7 +32,6 @@ import { validationPipe } from './validation.pipe';
     const swaggerConfig = new DocumentBuilder()
       .setTitle('msfiles API')
       .setDescription('Сервис конвертации и загрузки файлов в Minio')
-      .setBasePath(config.get('APPLICATION_PREFIX'));
 
     if (config.get('APPLICATION_PREFIX')) {
       swaggerConfig.setBasePath(config.get('APPLICATION_PREFIX'));

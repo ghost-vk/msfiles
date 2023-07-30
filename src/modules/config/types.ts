@@ -33,6 +33,9 @@ export interface AppConfig {
   REDIS_PORT: string;
   REDIS_HOST: string;
   CORS_ORIGINS_ARRAY?: string[];
+  MAX_FILE_SIZE_MB: number;
+  MAX_IMAGE_SIZE_MB: number;
+  MAX_VIDEO_SIZE_MB: number;
 }
 
 export type EnvBoolean = 'y' | 'n';
@@ -68,4 +71,7 @@ export interface EnvVariables {
   REDIS_PORT: string;
   REDIS_HOST: string;
   CORS_ORIGINS: string;
+  MAX_FILE_SIZE_MB?: number;
+  MAX_IMAGE_SIZE_MB?: number;
+  MAX_VIDEO_SIZE_MB?: number;
 }

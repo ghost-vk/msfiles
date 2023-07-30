@@ -6,9 +6,11 @@ import {
   Controller,
   ForbiddenException,
   HttpCode,
+  HttpStatus,
   InternalServerErrorException,
   Logger,
   Param,
+  ParseFilePipeBuilder,
   Post,
   Query,
   UploadedFile,
@@ -30,7 +32,7 @@ import { ActionKeyGuard } from '../../auth/action-key.guard';
 import { ConcurrencyUploadGuard } from '../../auth/concurrency-upload.guard';
 import { RequestedAction } from '../../auth/requested-action.decorator';
 import { FileActionsEnum, TaskStatusEnum } from '../../config/actions';
-import { RMQ_CONSUMER_EXCHANGE } from '../../config/constants';
+import { MAX_FILE_SIZE_MB, MAX_IMAGE_SIZE_MB, MAX_VIDEO_SIZE_MB, RMQ_CONSUMER_EXCHANGE } from '../../config/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FileUploadDto } from '../dtos/file-upload.dto';
 import { GetUploadStatusDto } from '../dtos/get-upload-status.dto';
@@ -46,6 +48,7 @@ import { RmqMsgHandlerService, UploadResSubjPayload } from '../services/rmq-msg-
 import { VideoProcessorService } from '../services/video-processor.service';
 import { CreateUploadUrlCacheData, ImageExtensionEnum, VideoExtensionEnum } from '../types';
 import { MsgTaskStart } from '../types/queue-payloads';
+import { mbToB } from '../utils/mb-to-b';
 
 /**
  * This only uploads the file, but does not create any records in the database,
@@ -83,15 +86,16 @@ export class StorageController {
     description: 'A unique key for uploading a file, created on the side of the main service.',
   })
   async uploadFile(
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addMaxSizeValidator({ maxSize: mbToB(MAX_FILE_SIZE_MB) })
+        .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
+    )
+    file: Express.Multer.File,
     @Query() options: UploadFileOptionsDto = {},
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task> {
     if (!uploadConfig) throw new ForbiddenException();
-
-    if (!file) {
-      throw new BadRequestException('File required to upload.');
-    }
 
     this.logger.log(`Got file [${file.originalname}] upload request.`);
     this.logger.debug(`File [${file.originalname}] upload options:\n${JSON.stringify(uploadConfig, null, 2)}`);
@@ -189,15 +193,16 @@ export class StorageController {
     description: 'A unique key for uploading a file, created on the side of the main service.',
   })
   async uploadImage(
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addMaxSizeValidator({ maxSize: mbToB(MAX_IMAGE_SIZE_MB) })
+        .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
+    )
+    file: Express.Multer.File,
     @Query() options: UploadImageOptionsDto = {},
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task> {
     if (!uploadConfig) throw new ForbiddenException();
-
-    if (!file) {
-      throw new BadRequestException('File required to upload');
-    }
 
     if (!file.mimetype.startsWith('image/')) {
       throw new BadRequestException('File should be image type');
@@ -328,13 +333,18 @@ export class StorageController {
     description: 'A unique key for uploading a file, created on the side of the main service.',
   })
   async uploadVideo(
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addMaxSizeValidator({ maxSize: mbToB(MAX_VIDEO_SIZE_MB) })
+        .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
+    )
+    file: Express.Multer.File,
     @Query() options: UploadVideoOptionsDto = {},
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task> {
     if (!uploadConfig) throw new ForbiddenException();
 
-    if (!file || !file.mimetype.startsWith('video/')) {
+    if (!file.mimetype.startsWith('video/')) {
       throw new BadRequestException('Required video file to upload.');
     }
 

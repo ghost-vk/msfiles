@@ -1,26 +1,25 @@
-FROM --platform=linux/amd64 node:18-alpine as builder
+FROM --platform=linux/amd64 node:18-bullseye-slim as builder
 WORKDIR /app
-
 COPY package.json yarn.lock ./
-RUN yarn install
-
+RUN --mount=type=cache,mode=0777,target=/root/.yarn yarn install --frozen-lockfile
 COPY . .
 RUN yarn build:prod
 
-FROM --platform=linux/amd64 node:18-alpine
-RUN apk add --no-cache sqlite ffmpeg
+FROM --platform=linux/amd64 node:18-bullseye-slim
+RUN apt-get update && apt-get install -y \
+    sqlite3 \
+    ffmpeg \
+    libjemalloc2 \
+    && rm -rf /var/lib/apt/lists/*
+ENV LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
 ARG NODE_ENV=production
 ENV NODE_ENV $NODE_ENV
 ARG DATABASE_URL="file:../db/msfiles.db"
 ENV DATABASE_URL=$DATABASE_URL
-ARG APPLICATION_PORT=8080
-ENV APPLICATION_PORT=$APPLICATION_PORT
-ARG APPLICATION_HOST="0.0.0.0"
-ENV APPLICATION_HOST=$APPLICATION_HOST
 WORKDIR /app
 
 COPY package.json yarn.lock ./
-RUN yarn install --production
+RUN --mount=type=cache,mode=0777,target=/root/.yarn yarn install --production --frozen-lockfile
 
 COPY . .
 COPY --from=builder /app/dist/. dist

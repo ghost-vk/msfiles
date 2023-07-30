@@ -41,5 +41,6 @@ lerna-debug.log*
 **/*.db
 **/*.db*
 
-docker/rmq/data
+docker/rmq
+docker/rmq-test
 

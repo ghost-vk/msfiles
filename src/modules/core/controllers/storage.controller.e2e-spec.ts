@@ -16,7 +16,12 @@ import { createUploadKey } from '../../../../tests/utils/create-upload-key';
 import { setup, TestConfig } from '../../../../tests/utils/setup-app';
 import { sleep } from '../../../utils/sleep';
 import { FileActionsEnum, TaskStatusEnum } from '../../config/actions';
-import { RMQ_CONSUMER_EXCHANGE, RMQ_MSFILES_EXCHANGE } from '../../config/constants';
+import {
+  MAX_FILE_SIZE_MB,
+  MAX_IMAGE_SIZE_MB,
+  RMQ_CONSUMER_EXCHANGE,
+  RMQ_MSFILES_EXCHANGE,
+} from '../../config/constants';
 import { AppConfig } from '../../config/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MinioService } from '../services/minio.service';
@@ -152,13 +157,13 @@ describe('Storage controller (external endpoint)', () => {
         urlConfig: { action: FileActionsEnum.UploadFile, uid: randomUUID() },
       });
 
-      const { body } = await request(server).post(`/storage/uploadFile/${key}`).send().expect(400);
+      const { body } = await request(server).post(`/storage/uploadFile/${key}`).send().expect(422);
 
       expect(body).toEqual(
         expect.objectContaining({
-          statusCode: 400,
-          message: 'File required to upload.',
-          error: 'Bad Request',
+          statusCode: 422,
+          message: 'File is required',
+          error: 'Unprocessable Entity',
         }),
       );
     });
@@ -311,6 +316,24 @@ describe('Storage controller (external endpoint)', () => {
       );
     });
 
+    it('should forbid upload large file', async () => {
+      if (MAX_FILE_SIZE_MB > 2) {
+        throw new Error('Too large MAX_FILE_UPLOAD for file 2.2mb');
+      }
+
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadFile, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      await request(server)
+        .post(`/storage/uploadFile/${key}`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', '2.2mb.jpg'))
+        .expect(422);
+    });
+
     it('should successfully upload pdf file synchronously', async () => {
       const uid = randomUUID();
       const { key } = await createUploadKey({
@@ -337,6 +360,11 @@ describe('Storage controller (external endpoint)', () => {
       expect(redisRec.used).toBeFalsy();
 
       setTimeout(() => {
+        console.log(
+          `🧪 Publish message to exchange [${RMQ_MSFILES_EXCHANGE}], routing key: [consumer_saved_result]. Payload:\n${JSON.stringify(
+            { uid },
+          )}`,
+        );
         channel.publish(RMQ_MSFILES_EXCHANGE, 'consumer_saved_result', Buffer.from(JSON.stringify({ uid })));
       }, 2000);
 
@@ -493,6 +521,11 @@ describe('Storage controller (external endpoint)', () => {
 
       // publish task uid
       setTimeout(() => {
+        console.log(
+          `🧪 Publish message to exchange [${RMQ_MSFILES_EXCHANGE}], routing key [consumer_saved_result]. Payload:\n${JSON.stringify(
+            { uid },
+          )}`,
+        );
         channel.publish(RMQ_MSFILES_EXCHANGE, 'consumer_saved_result', Buffer.from(JSON.stringify({ uid })));
       }, 3000);
 
@@ -642,15 +675,33 @@ describe('Storage controller (external endpoint)', () => {
         urlConfig: { action: FileActionsEnum.UploadImage, uid: randomUUID() },
       });
 
-      const { body } = await request(server).post(`/storage/uploadImage/${key}`).send().expect(400);
+      const { body } = await request(server).post(`/storage/uploadImage/${key}`).send().expect(422);
 
       expect(body).toEqual(
         expect.objectContaining({
-          statusCode: 400,
-          message: 'File required to upload',
-          error: 'Bad Request',
+          statusCode: 422,
+          message: 'File is required',
+          error: 'Unprocessable Entity',
         }),
       );
+    });
+
+    it('should forbid upload large image', async () => {
+      if (MAX_IMAGE_SIZE_MB > 2) {
+        throw new Error('Too large MAX_IMAGE_SIZE_MB for file 2.2mb');
+      }
+
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadImage, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      await request(server)
+        .post(`/storage/uploadImage/${key}`)
+        .attach('file', path.resolve(__dirname, '..', '..', '..', '..', 'tests', 'files', '2.2mb.jpg'))
+        .expect(422);
     });
 
     it('should successfully upload jpg file with default params', async () => {
@@ -1986,13 +2037,13 @@ describe('Storage controller (external endpoint)', () => {
         urlConfig: { action: FileActionsEnum.UploadVideo, uid: randomUUID() },
       });
 
-      const { body } = await request(server).post(`/storage/uploadVideo/${key}`).send().expect(400);
+      const { body } = await request(server).post(`/storage/uploadVideo/${key}`).send().expect(422);
 
       expect(body).toEqual(
         expect.objectContaining({
-          statusCode: 400,
-          message: 'Required video file to upload.',
-          error: 'Bad Request',
+          statusCode: 422,
+          message: 'File is required',
+          error: 'Unprocessable Entity',
         }),
       );
     });
