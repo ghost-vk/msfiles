@@ -1,13 +1,12 @@
-FROM --platform=linux/amd64 node:18-bullseye-slim as builder
+FROM node:18-bullseye-slim as builder
 WORKDIR /app
 COPY package.json yarn.lock ./
 RUN --mount=type=cache,mode=0777,target=/root/.yarn yarn install --frozen-lockfile
 COPY . .
 RUN yarn build:prod
 
-FROM --platform=linux/amd64 node:18-bullseye-slim
+FROM node:18-bullseye-slim
 RUN apt-get update && apt-get install -y \
-    sqlite3 \
     ffmpeg \
     libjemalloc2 \
     && rm -rf /var/lib/apt/lists/*
