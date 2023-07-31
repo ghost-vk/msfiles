@@ -3,8 +3,8 @@ import { S3Object } from '@prisma/client';
 import { extname } from 'path';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { generateFilename } from '../functions/generate-filename';
 import { FileTypeEnum, ImageExtensionEnum, isImageExtension, PutObjectResult, Size } from '../types';
-import { FilenameService } from './filename.service';
 import { MinioService } from './minio.service';
 
 export type ImageSaveParams = {
@@ -26,11 +26,7 @@ export type ImageSaveResult = {
 export class ImageSaverService {
   private readonly logger = new Logger(ImageSaverService.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly filenameService: FilenameService,
-    private readonly minioService: MinioService,
-  ) {}
+  constructor(private readonly prisma: PrismaService, private readonly minioService: MinioService) {}
 
   async save(params: ImageSaveParams): Promise<ImageSaveResult> {
     this.logger.log(`Start save image [${params.originalname}].`);
@@ -48,7 +44,7 @@ export class ImageSaverService {
       );
     }
 
-    const objName = this.filenameService.generateFilename(params.originalname, {
+    const objName = generateFilename(params.originalname, {
       ext,
       type: params.filetype,
       ...params.size,

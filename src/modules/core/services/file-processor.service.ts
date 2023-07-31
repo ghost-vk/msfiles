@@ -10,9 +10,9 @@ import { RMQ_CONSUMER_EXCHANGE } from '../../config/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FileProcessorException } from '../exceptions/file-processor.exception';
 import { FileProcessorExceptionHandler } from '../exceptions/file-processor.exception-handler';
+import { generateFilename } from '../functions/generate-filename';
 import { FileTypeEnum, isImageExtension, isVideoExtension } from '../types';
 import { MsgFileUpload, MsgTaskCompleted } from '../types/queue-payloads';
-import { FilenameService } from './filename.service';
 import { ImageProcessorService } from './image-processor.service';
 import { MinioService } from './minio.service';
 import { TaskService } from './task.service';
@@ -36,7 +36,6 @@ export class FileProcessorService implements OnModuleInit {
   constructor(
     private readonly imageProcessor: ImageProcessorService,
     private readonly videoProcessor: VideoProcessorService,
-    private readonly filenameService: FilenameService,
     private readonly minioService: MinioService,
     private readonly prisma: PrismaService,
     private readonly tempTagRemover: TempTagRemoverService,
@@ -89,7 +88,7 @@ export class FileProcessorService implements OnModuleInit {
         return;
       }
 
-      const objname = this.filenameService.generateFilename(input.originalname, {
+      const objname = generateFilename(input.originalname, {
         ext,
         type: FileTypeEnum.MainFile,
       });

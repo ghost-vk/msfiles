@@ -12,7 +12,6 @@ import { VideoProcessorExceptionHandler } from './exceptions/video-processor.exc
 import { FFmpegService } from './services/ffmpeg.service';
 import { FFprobeService } from './services/ffprobe.service';
 import { FileProcessorService } from './services/file-processor.service';
-import { FilenameService } from './services/filename.service';
 import { ImageConverterService } from './services/image-converter.service';
 import { ImageProcessorService } from './services/image-processor.service';
 import { ImageSaverService } from './services/image-saver.service';
@@ -60,7 +59,6 @@ import { VideoProcessorService } from './services/video-processor.service';
     PrismaService,
     FFprobeService,
     FileProcessorService,
-    FilenameService,
     ImageConverterService,
     ImageProcessorService,
     ImageSaverService,

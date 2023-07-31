@@ -12,9 +12,9 @@ import { RMQ_CONSUMER_EXCHANGE } from '../../config/constants';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VideoProcessorException } from '../exceptions/video-processor.exception';
 import { VideoProcessorExceptionHandler } from '../exceptions/video-processor.exception-handler';
+import { generateFilename } from '../functions/generate-filename';
 import { FileTypeEnum, ImageExtensionEnum, Size, VideoExtensionEnum } from '../types';
 import { MsgFileUpload, MsgTaskCompleted } from '../types/queue-payloads';
-import { FilenameService } from './filename.service';
 import { ImageConverterService } from './image-converter.service';
 import { ImageSaverService } from './image-saver.service';
 import { MinioService } from './minio.service';
@@ -49,7 +49,6 @@ export class VideoProcessorService implements OnModuleInit {
   constructor(
     private readonly sizeDetector: SizeDetectorService,
     private readonly prisma: PrismaService,
-    private readonly filenameService: FilenameService,
     private readonly minioService: MinioService,
     private readonly videoConverter: VideoConverterService,
     private readonly thumbnailMaker: ThumbnailMakerService,
@@ -99,7 +98,7 @@ export class VideoProcessorService implements OnModuleInit {
         this.logger.log(`Upload video file [${input.originalname}] without conversion.`);
         const orgnExt = extname(input.originalname).replace('.', '');
         const orgnVideoSize = await this.sizeDetector.getVideoSize(orgnFileTmpPath);
-        const mainFileName = this.filenameService.generateFilename(input.originalname, {
+        const mainFileName = generateFilename(input.originalname, {
           ext: orgnExt,
           type: FileTypeEnum.MainFile,
           ...orgnVideoSize,
@@ -151,7 +150,7 @@ export class VideoProcessorService implements OnModuleInit {
               const ext = extname(p);
 
               if (ext === '.m3u8') continue;
-              const pName = this.filenameService.generateFilename(input.originalname, {
+              const pName = generateFilename(input.originalname, {
                 ext,
                 type: FileTypeEnum.Part,
                 ...videoSize,
@@ -173,7 +172,7 @@ export class VideoProcessorService implements OnModuleInit {
             }
           }
 
-          const videoFileName = this.filenameService.generateFilename(input.originalname, {
+          const videoFileName = generateFilename(input.originalname, {
             ext: input.ext === VideoExtensionEnum.Hls ? 'm3u8' : input.ext,
             type: i === biggestSizeIdx ? FileTypeEnum.MainFile : FileTypeEnum.AltVideo,
             ...videoSize,

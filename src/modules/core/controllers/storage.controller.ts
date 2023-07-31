@@ -1,6 +1,5 @@
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import {
-  BadRequestException,
   Body,
   ClassSerializerInterceptor,
   Controller,
@@ -19,12 +18,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiParam, ApiTags } from '@nestjs/swagger';
-import { randomUUID } from 'crypto';
-import { mkdtemp, writeFile } from 'fs/promises';
 import { isUndefined } from 'lodash';
-import { nanoid } from 'nanoid';
-import { tmpdir } from 'os';
-import { extname, join } from 'path';
 import { ObservableInput, timeout } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
@@ -40,6 +34,7 @@ import { UploadFileOptionsDto } from '../dtos/upload-file-options.dto';
 import { UploadImageOptionsDto } from '../dtos/upload-image-options.dto';
 import { UploadVideoOptionsDto } from '../dtos/upload-video-options.dto';
 import { Task } from '../models/task.entity';
+import { diskStorage } from '../multer/storage';
 import { UploadObjectDataPipe } from '../pipes/upload-object.pipe';
 import { FileProcessorService } from '../services/file-processor.service';
 import { ImageProcessorService } from '../services/image-processor.service';
@@ -75,7 +70,7 @@ export class StorageController {
   ) {}
 
   @Post('uploadFile/:key')
-  @UseInterceptors(FileInterceptor('file'), ClassSerializerInterceptor)
+  @UseInterceptors(FileInterceptor('file', { storage: diskStorage }), ClassSerializerInterceptor)
   @UseGuards(ConcurrencyUploadGuard, ActionKeyGuard)
   @RequestedAction(FileActionsEnum.UploadFile)
   @ApiBody({ type: FileUploadDto })
@@ -111,12 +106,6 @@ export class StorageController {
     });
 
     try {
-      const dir = await mkdtemp(join(tmpdir(), nanoid(6)));
-      const fileExt = extname(file.originalname);
-      const inputFileName = fileExt ? randomUUID() + fileExt : randomUUID();
-
-      await writeFile(join(dir, inputFileName), file.buffer);
-
       this.logger.log(`Successfully put file [${file.originalname}] to temporary directory for processing.`);
 
       await this.amqpConnection.publish<MsgTaskStart>(RMQ_CONSUMER_EXCHANGE, 'task_start', {
@@ -129,8 +118,8 @@ export class StorageController {
 
       this.fileProcessor.fileProcessorSubj$.next({
         originalname: file.originalname,
-        dir,
-        filename: inputFileName,
+        dir: file.destination,
+        filename: file.filename,
         task_id: task.id,
         bucket: uploadConfig?.bucket,
         uid: uploadConfig.uid,
@@ -182,7 +171,7 @@ export class StorageController {
   }
 
   @Post('uploadImage/:key')
-  @UseInterceptors(FileInterceptor('file'), ClassSerializerInterceptor)
+  @UseInterceptors(FileInterceptor('file', { storage: diskStorage }), ClassSerializerInterceptor)
   @UseGuards(ConcurrencyUploadGuard, ActionKeyGuard)
   @RequestedAction(FileActionsEnum.UploadImage)
   @ApiBody({ type: FileUploadDto })
@@ -196,6 +185,7 @@ export class StorageController {
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addMaxSizeValidator({ maxSize: mbToB(MAX_IMAGE_SIZE_MB) })
+        .addFileTypeValidator({ fileType: /^image\// })
         .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
     )
     file: Express.Multer.File,
@@ -203,10 +193,6 @@ export class StorageController {
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task> {
     if (!uploadConfig) throw new ForbiddenException();
-
-    if (!file.mimetype.startsWith('image/')) {
-      throw new BadRequestException('File should be image type');
-    }
 
     this.logger.log(`Got image [${file.originalname}] upload request.`);
     this.logger.debug(
@@ -229,12 +215,6 @@ export class StorageController {
     });
 
     try {
-      const dir = await mkdtemp(join(tmpdir(), nanoid(6)));
-      const fileExt = extname(file.originalname);
-      const inputFileName = fileExt ? randomUUID() + fileExt : randomUUID();
-
-      await writeFile(join(dir, inputFileName), file.buffer);
-
       this.logger.log(`Successfully put file [${file.originalname}] to temporary directory for conversion.`);
 
       await this.amqpConnection.publish<MsgTaskStart>(RMQ_CONSUMER_EXCHANGE, 'task_start', {
@@ -248,8 +228,8 @@ export class StorageController {
       this.imageProcessor.imageConversion$.next({
         ext: options.ext ?? ImageExtensionEnum.Webp,
         originalname: file.originalname,
-        dir,
-        filename: inputFileName,
+        dir: file.destination,
+        filename: file.filename,
         task_id: taskRecord.id,
         quality: options.q,
         width: options.w,
@@ -322,7 +302,7 @@ export class StorageController {
    * Only if `options.convert=false` processor uploads raw video to storage.
    */
   @Post('uploadVideo/:key')
-  @UseInterceptors(FileInterceptor('file'), ClassSerializerInterceptor)
+  @UseInterceptors(FileInterceptor('file', { storage: diskStorage }), ClassSerializerInterceptor)
   @UseGuards(ConcurrencyUploadGuard, ActionKeyGuard)
   @RequestedAction(FileActionsEnum.UploadVideo)
   @ApiBody({ type: FileUploadDto })
@@ -336,6 +316,7 @@ export class StorageController {
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addMaxSizeValidator({ maxSize: mbToB(MAX_VIDEO_SIZE_MB) })
+        .addFileTypeValidator({ fileType: /^video\// })
         .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
     )
     file: Express.Multer.File,
@@ -343,10 +324,6 @@ export class StorageController {
     @Param('key', UploadObjectDataPipe) uploadConfig?: CreateUploadUrlCacheData,
   ): Promise<Task> {
     if (!uploadConfig) throw new ForbiddenException();
-
-    if (!file.mimetype.startsWith('video/')) {
-      throw new BadRequestException('Required video file to upload.');
-    }
 
     this.logger.debug(`Start upload video [${file.originalname}]. Options: ${JSON.stringify(options, null, 2)}.`);
 
@@ -362,12 +339,6 @@ export class StorageController {
     });
 
     try {
-      const dir = await mkdtemp(join(tmpdir(), nanoid(6)));
-      const fileExt = extname(file.originalname);
-      const inputFileName = fileExt ? randomUUID() + fileExt : randomUUID();
-
-      await writeFile(join(dir, inputFileName), file.buffer);
-
       await this.amqpConnection.publish<MsgTaskStart>(RMQ_CONSUMER_EXCHANGE, 'task_start', {
         task_id: taskRecord.id,
         uid: uploadConfig.uid,
@@ -381,8 +352,8 @@ export class StorageController {
       this.videoProcessor.videoConversion$.next({
         ext: options.ext ?? VideoExtensionEnum.Mp4,
         originalname: file.originalname,
-        dir: dir,
-        filename: inputFileName,
+        dir: file.destination,
+        filename: file.filename,
         convert: isUndefined(options.convert) ? true : options.convert,
         sizes: options.s ? options.s.map((s) => ({ width: s.w, height: s.h })) : [],
         task_id: taskRecord.id,
