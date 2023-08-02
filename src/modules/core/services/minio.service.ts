@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import to from 'await-to-js';
+import fs from 'fs/promises';
 import { isUndefined, uniq } from 'lodash';
 import { BucketItemStat, Client as MinioClient } from 'minio';
 import { dirname } from 'path';
@@ -65,7 +66,16 @@ export class MinioService {
     const [uploadError] = await to(this.client.fPutObject(bucket, options.filename, filepath));
 
     if (uploadError) {
-      this.logger.error('Error occurred while upload error.', uploadError);
+      const stat = await fs.stat(filepath);
+
+      this.logger.error(
+        `Error occurred while upload error.\nError message: ${uploadError.message}\nFile stat: ${JSON.stringify(
+          stat,
+          null,
+          2,
+        )}`,
+        uploadError,
+      );
 
       await inspectFolder(dirname(filepath), this.logger);
 

@@ -2000,6 +2000,67 @@ describe('Storage controller (external endpoint)', () => {
         }),
       );
     });
+
+    it('should successfully upload difficult image', async () => {
+      const uid = randomUUID();
+      const { key } = await createUploadKey({
+        config,
+        redis,
+        urlConfig: { action: FileActionsEnum.UploadImage, uid, bucket: config.get('MINIO_BUCKET') },
+      });
+
+      if (MAX_IMAGE_SIZE_MB < 3) {
+        console.warn('Run test only if max image size at least 3 mb. Skip test...');
+
+        return;
+      }
+
+      const { body } = await request(server)
+        .post(`/storage/uploadImage/${key}`)
+        .attach(
+          'file',
+          path.resolve(
+            __dirname,
+            '..',
+            '..',
+            '..',
+            '..',
+            'tests',
+            'files',
+            '1649119032_90-vsegda-pomnim-com-p-vidi-prirodi-foto-107.jpg',
+          ),
+        )
+        .expect(201);
+
+      const deadline = new Date();
+
+      deadline.setSeconds(deadline.getSeconds() + 20);
+
+      let task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+
+      while (task.status !== TaskStatusEnum.Done) {
+        await sleep(500);
+        console.log('🧪 Task not completed, wait for 500ms...');
+        task = await prisma.task.findUniqueOrThrow({ where: { id: body.id } });
+        if (new Date() > deadline) {
+          throw new Error('Time is up.');
+        }
+      }
+
+      expect(uploadedImageMessages.length).toBeGreaterThan(0);
+
+      await sleep(1000);
+
+      expect(taskCompletedMessages.length).toBe(1);
+
+      expect(taskCompletedMessages[0]).toEqual(
+        expect.objectContaining({
+          status: TaskStatusEnum.Done,
+          task_id: task.id,
+          uid: uid,
+        }),
+      );
+    });
   });
 
   describe('POST: /storage/uploadVideo/:key', () => {
