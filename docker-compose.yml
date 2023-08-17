@@ -13,6 +13,7 @@ services:
       - .env.docker
     volumes:
       - ./prisma/database/.:/app/prisma/database
+    platform: ${DOCKER_PLATFORM}
 
   app-test:
     image: msfiles-test:dev
