@@ -131,9 +131,9 @@ export class StorageController {
 
       return await new Promise((resolve, reject) => {
         const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(
-          timeout(20000), // TODO Move it to env.
+          timeout(30000), // TODO Move it to env.
           catchError((): ObservableInput<unknown> => {
-            const msg = 'No response from consumer after 20s.';
+            const msg = 'No response from consumer after 30s.';
 
             this.logger.log(msg);
 
@@ -245,9 +245,9 @@ export class StorageController {
 
       return await new Promise((resolve, reject) => {
         const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(
-          timeout(20000), // todo move it to env
+          timeout(30000), // todo move it to env
           catchError((): ObservableInput<unknown> => {
-            const msg = 'No response from consumer after 20s.';
+            const msg = 'No response from consumer after 30s.';
 
             this.logger.log(msg);
 
@@ -367,9 +367,9 @@ export class StorageController {
 
       return await new Promise((resolve, reject) => {
         const o$ = this.rmqMsgHandler.uploadResSubj$.pipe(
-          timeout(30000), // todo move it to env
+          timeout(60000), // todo move it to env
           catchError((): ObservableInput<unknown> => {
-            const msg = 'No response from consumer after 30s.';
+            const msg = 'No response from consumer after 60s.';
 
             this.logger.log(msg);
 
